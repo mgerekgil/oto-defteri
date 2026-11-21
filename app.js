@@ -1,7 +1,7 @@
 /* Oto Defteri — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
    Kayıt adları Klinik Defteri altyapısından kaldı: hasta = araç (plaka), malzeme = katalog (hizmet / ürün), islem = iş (yıkama, detay, ürün satışı). */
 "use strict";
-const SURUM = "1.0.0";
+const SURUM = "1.1.0";
 const SATICI_TEL = "905309469947";
 const GOOGLE_CLIENT_ID = "1044147751394-qo809o3sndht657dcbr8cprj3m2s96dt.apps.googleusercontent.com";      // Google ile bağla (isteğe bağlı) · Drive'da yalnız bu programın klasörü
 const VARSAYILAN_GRUP = ["Yıkama", "İç temizlik", "Pasta cila", "Seramik", "PPF", "Cam filmi", "Ürün"];
@@ -20,6 +20,7 @@ const ORNEK_HIZMET = [
 // [ad, satış, alış, stok, uyarı sınırı]
 const ORNEK_URUN = [["Oto şampuanı 1 L", 250, 120, 10, 3], ["Cila / wax 500 ml", 450, 220, 6, 2], ["Mikrofiber bez", 120, 45, 20, 5], ["Lastik parlatıcı", 200, 90, 8, 2], ["Cam suyu 4 L", 150, 60, 12, 3], ["Oto kokusu", 90, 30, 30, 8]];
 const ORNEK_PAKET = [{ad: "10 dış yıkama paketi", adet: 10, fiyat: 2500}, {ad: "10 iç dış yıkama paketi", adet: 10, fiyat: 4000}];
+const GARANTI_SART = "Garanti, uygulanan ürün ve işçilik için geçerlidir. Kaza, darbe, yanlış yıkama (fırçalı otomatik yıkama, sert kimyasal) ve üçüncü kişilerin müdahalesi garanti dışıdır. Belirtilen bakımların yapılmaması garantiyi etkileyebilir. Başvuruda bu belge gösterilir.";
 const PANELLER = ["Kaput", "Tavan", "Bagaj", "Ön tampon", "Arka tampon", "Sol ön çamurluk", "Sol ön kapı", "Sol arka kapı", "Sol arka çamurluk", "Sağ ön çamurluk", "Sağ ön kapı", "Sağ arka kapı", "Sağ arka çamurluk"];
 const DURUM = {randevu: "Randevu", sira: "Sırada", islemde: "İşlemde", hazir: "Hazır", teslim: "Teslim edildi"};
 const SONRAKI = {randevu: ["sira", "Geldi · sıraya al"], sira: ["islemde", "▶ Başla"], islemde: ["hazir", "✓ Hazır"], hazir: ["teslim", "Teslim et"]};
@@ -66,7 +67,7 @@ async function pinOzet(pin, tuz) {
 }
 async function pinKaydet(pin) {
   const tuz = crypto.getRandomValues(new Uint8Array(16));
-  await Veri.ayarYaz("pin", {t: [...tuz], h: await pinOzet(pin, tuz)});
+  await Veri.ayarYaz("pin", {t: [...tuz], h: await pinOzet(pin, tuz), u: pin.length});
 }
 async function pinDogru(pin) { const p = Veri.ayar("pin"); return !!p && await pinOzet(pin, new Uint8Array(p.t)) === p.h; }
 
@@ -141,15 +142,16 @@ const googleBagli = () => !!(Veri.ayar("google") && Veri.ayar("google").giz);
 async function driveYedekle(sessiz) {
   if (!googleBagli()) return false;
   if (sessiz && !Google.jetonVar()) return false;          // açılır pencere yalnız dokunuşla; sessizken jeton yoksa sonra
-  try { await Google.jetonAl(sessiz); await Google.yedekYaz(await yedekOlustur(Veri.ayar("google").giz)); if (!sessiz) { toast("☁ Drive'a yedeklendi"); ciz(); } return true; }
+  try { await Google.jetonAl(sessiz); await Google.yedekYaz(await yedekOlustur(Veri.ayar("google").giz)); let fn = 0; try { fn = await fotoDriveEsitle(); } catch (e) { /* fotoğraf sonra */ } if (!sessiz) { toast("☁ Drive'a yedeklendi" + (fn ? ` · ${fn} fotoğraf` : "")); ciz(); } return true; }
   catch (e) { if (!sessiz) toast("Drive'a yedeklenemedi: " + e.message); return false; }
 }
 function driveGeriYukleSor(metin, sonra) {
-  perde(`<h3>☁ Drive'daki yedeği geri yükle</h3><p class="kucuk">Bu telefondaki kayıtların YERİNE geçer.</p><label>Yedeğin şifresi (yedek alındığı zamanki giriş şifresi)<input class="girdi" id="dS" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><p class="hata" id="dH"></p><button class="btn ana" id="dK">Geri yükle</button><button class="btn ince" data-kapat>Vazgeç</button>`, s => {
+  perde(`<h3>☁ Drive'daki yedeği geri yükle</h3><p class="kucuk">Bu telefondaki kayıtların YERİNE geçer.</p><label>Yedeğin şifresi (yedek alındığı zamanki giriş şifresi)<input class="girdi" id="dS" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><p class="hata" id="dH"></p><button class="btn ana" id="dK">Geri yükle</button><button class="btn ince" data-kapat>Vazgeç</button>`, s => {
     s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#dS").focus();
     s.querySelector("#dK").onclick = async () => { const pin = s.querySelector("#dS").value;
       try { const y = await yedekCoz(metin, pin, Veri.ayar("google").giz); const g = Veri.ayar("google"); await Veri.iceAl(y); stokYenile(); await Veri.ayarYaz("google", g); await Veri.ayarYaz("sonDrive", new Date().toISOString()); OTURUM.pin = pin; OTURUM.acik = true; await pinKaydet(pin); await lisansTazele(false);
-        kapat(); toast(`Geri yüklendi · ${A().hasta.length} hasta, ${A().islem.length} işlem`); if (sonra) sonra(); else git("ana"); }
+        await fotoYetimTemizle(); let fn = 0; try { fn = await fotoDriveGetir(); } catch (e) { /* fotoğraflar sonra */ }
+        kapat(); toast(`Geri yüklendi · ${A().hasta.length} araç, ${A().islem.length} iş${fn ? ", " + fn + " fotoğraf" : ""}`); if (sonra) sonra(); else git("ana"); }
       catch (e) { s.querySelector("#dH").textContent = e.message; } }; });
 }
 async function googleBaglan(kurulumda) {
@@ -280,6 +282,7 @@ function ciz() {
   const u = $("#uyg");
   if (!Veri.ayar("kurulum")) { u.innerHTML = kurulumEkrani(); return BAGLA.kurulum(u); }
   if (!OTURUM.acik) return kilitEkrani(u);
+  if (OTURUM.durum && !OTURUM.durum.acik) return lisansEkrani(u);          // 1.1.0: lisanssız (deneme dışı) kullanım yok
   const [y, p] = YOL();
   const E = {ana: anaEkran, yeni: yeniEkran, satis: satisEkran, is: isEkran, hasta: hastaEkran, hastalar: hastalarEkran, malzeme: p ? malzemeEkran : malzemelerEkran, kasa: kasaEkran, ayarlar: ayarlarEkran}[y] || anaEkran;
   u.innerHTML = E(p);
@@ -293,8 +296,8 @@ function kurulumEkrani() {
     <div class="logo">🚗</div><div style="text-align:center"><b style="font-size:22px">Oto Defteri</b><div class="kucuk">Hoş geldiniz · işletmenizi tanıtın</div></div>
     <label>İşletme adı<input class="girdi" id="kAd" autocomplete="organization" placeholder="Tabelada yazan ad"></label>
     <label>İşletme telefonu * <span style="font-weight:400">(fişte ve hatırlatmada görünür)</span><input class="girdi" id="kTel" type="tel" inputmode="tel" placeholder="Telefon numarası"></label>
-    <div class="ikili-g"><label>Giriş şifresi (4 hane)<input class="girdi" id="kPin" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label>
-      <label>Şifre (tekrar)<input class="girdi" id="kPin2" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label></div>
+    <div class="ikili-g"><label>Giriş şifresi (4–8 rakam)<input class="girdi" id="kPin" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label>
+      <label>Şifre (tekrar)<input class="girdi" id="kPin2" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label></div>
     <div class="kart" style="display:grid;gap:8px"><div style="display:flex;gap:10px;align-items:center"><span class="av" style="background:#fff;border:1px solid var(--cizgi);color:#4285f4">G</span>
       <div style="flex:1"><b style="font-size:14px">Google ile bağla</b> <span class="et e-ana">isteğe bağlı</span><div class="kucuk">${GOOGLE_CLIENT_ID ? "Telefon değişse de lisansınız ve kayıtlarınız kaybolmaz: yedek kendi Drive'ınıza şifreli gider. Kurulumdan sonra Ayarlar'dan bağlarsınız." : "Yakında: telefon değişse de kayıtlarınız kaybolmasın diye Drive'a otomatik yedek. Ayarlar'dan bağlanacak."}</div></div></div></div>
     <div class="kart kucuk">🔒 Araç ve müşteri bilgileri yalnız bu cihazda tutulur (bilgisayar gerekmez). Program her gün yedeği kendinize (WhatsApp, Drive) göndermenizi hatırlatır.</div>
@@ -304,14 +307,17 @@ function kurulumEkrani() {
     <p class="kucuk" style="text-align:center">Sürüm ${SURUM}</p></main>`;
 }
 // kilit
+const pinUzunluklari = () => [((Veri.ayar("pin") || {}).u || 4), ...personeller().map(p => (p.pin && p.pin.u) || 4)];
 function kilitEkrani(u) {
   let pin = "";
+  const UZ = Math.max(...pinUzunluklari()), KISA = Math.min(...pinUzunluklari());          // en uzun şifreye ulaşınca kendiliğinden dener; kısa şifreler ✓ ile
   const ciz2 = (h = "") => {
     u.innerHTML = `<main class="kilit"><div class="logo">🚗</div><div><b style="font-size:20px">${esc(Veri.ayar("isletmeAd") || "Oto Defteri")}</b><div class="kucuk">${personelVar() ? "Kendi şifrenizi yazın" : "Giriş şifrenizi yazın"}</div></div>
-      <div class="pin">${[0, 1, 2, 3].map(i => `<span class="${i < pin.length ? "d" : ""}"></span>`).join("")}</div><p class="hata">${esc(h)}</p>
-      <div class="pin-tus">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-n="${n}">${n}</button>`).join("")}<button class="bos" data-a="unuttum" style="font-size:12px;color:var(--soluk)">Unuttum</button><button data-n="0">0</button><button class="bos" data-sil>⌫</button></div></main>`;
+      <div class="pin">${[...Array(UZ).keys()].map(i => `<span class="${i < pin.length ? "d" : ""}"></span>`).join("")}</div><p class="hata">${esc(h)}</p>
+      <div class="pin-tus">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-n="${n}">${n}</button>`).join("")}<button class="bos" data-a="unuttum" style="font-size:12px;color:var(--soluk)">Unuttum</button><button data-n="0">0</button><button class="bos" data-sil>⌫</button></div>${KISA < UZ ? `<button class="btn koyu" data-gir style="max-width:280px;margin-top:6px">✓ Giriş</button>` : ""}</main>`;
     const nokta = () => u.querySelectorAll(".pin span").forEach((s, i) => s.classList.toggle("d", i < pin.length));
-    u.querySelectorAll("[data-n]").forEach(b => b.addEventListener("pointerdown", e => { e.preventDefault(); if (pin.length < 4) { pin += b.dataset.n; nokta(); if (pin.length === 4) dene(); } }));
+    u.querySelectorAll("[data-n]").forEach(b => b.addEventListener("pointerdown", e => { e.preventDefault(); if (pin.length < UZ) { pin += b.dataset.n; nokta(); if (pin.length === UZ) dene(); } }));
+    const gir = u.querySelector("[data-gir]"); if (gir) gir.addEventListener("pointerdown", e => { e.preventDefault(); if (pin.length >= 4) dene(); });
     u.querySelector("[data-sil]").addEventListener("pointerdown", e => { e.preventDefault(); pin = pin.slice(0, -1); nokta(); });
   };
   const dene = async () => {
@@ -321,7 +327,7 @@ function kilitEkrani(u) {
     if (g) { await Veri.ayarYaz("yanlis", {n: 0, t: 0}); OTURUM.acik = true; OTURUM.pin = g.yp; OTURUM.kim = g.kim; ciz(); if (personelVar()) toast("Hoş geldiniz · " + g.kim.ad); lisansTazele(true).then(ciz); return; }
     await Veri.ayarYaz("yanlis", {n: (y.n >= 5 ? 0 : y.n) + 1, t: Date.now()}); pin = ""; ciz2(y.n + 1 >= 4 ? "Şifre yanlış · son deneme" : "Şifre yanlış");
   };
-  document.onkeydown = e => { if (OTURUM.acik) return; if (/^\d$/.test(e.key) && pin.length < 4) { pin += e.key; ciz2(); if (pin.length === 4) dene(); } else if (e.key === "Backspace") { pin = pin.slice(0, -1); ciz2(); } };
+  document.onkeydown = e => { if (OTURUM.acik) return; if (/^\d$/.test(e.key) && pin.length < UZ) { pin += e.key; ciz2(); if (pin.length === UZ) dene(); } else if (e.key === "Enter" && pin.length >= 4) dene(); else if (e.key === "Backspace") { pin = pin.slice(0, -1); ciz2(); } };
   ciz2();
 }
 
@@ -343,7 +349,9 @@ function anaEkran() {
     ${rnd.length ? `<div class="bas">📅 Randevular · bugün ve yarın</div><div class="kart liste">${rnd.map(i => { const h = hastaBul(i.hastaId), wa = h && waNo(h.tel), gun = i.randevuTs.slice(0, 10);
       return `<div class="s" data-git="is/${i.id}">${plakaHtml(h ? h.plaka : "", 1)}<div class="m"><b>${esc(gunYazi(gun))} ${saat(i.randevuTs)}${h && h.ad ? " · " + esc(h.ad) : ""}</b><small>${esc(kisaYazi(i))}</small></div>${gun <= t ? `<button class="cip on" data-durum="${i.id}" data-d="sira">Geldi</button>` : wa ? `<a class="t" href="https://wa.me/${wa}?text=${encodeURIComponent(randevuMetni(i))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:21px;text-decoration:none" aria-label="Randevu hatırlatma">💬</a>` : ""}</div>`; }).join("")}</div>` : ""}
     <div class="pano">${[["sira", "Sırada"], ["islemde", "İşlemde"], ["hazir", "Hazır"]].map(([k, b]) => `<section class="pkol"><div class="bas">${b} <span class="say">${kol(k).length}</span></div>${kol(k).map(isKart).join("") || `<div class="kart bos-durum kucuk">${k === "sira" ? 'Sırada araç yok · "＋ Araç al"' : "Araç yok"}</div>`}</section>`).join("")}</div>
+    ${(() => { const o = gunOzet(); return o.yik != null || o.bek != null || o.yogun ? `<div class="bas">Bugün</div><div class="uc"><div class="kart"><small>Ortalama yıkama</small><b>${o.yik != null ? o.yik + " dk" : "–"}</b></div><div class="kart"><small>Ortalama bekleme</small><b>${o.bek != null ? o.bek + " dk" : "–"}</b></div><div class="kart"><small>En yoğun saat</small><b>${o.yogun || "–"}</b></div></div>` : ""; })()}
     ${gelecekKart()}
+    ${(() => { const L = ozlenenler(); return L.length ? `<div class="bas">💛 Sizi özledik · 30+ gün gelmeyenler<button data-git="hastalar" data-hfgit="ozledik" style="color:var(--ana);font-weight:600">${L.length > 5 ? "Tümü ›" : ""}</button></div><div class="kart liste">${L.slice(0, 5).map(ozledikSatir).join("")}</div>` : ""; })()}
     ${su.slice(0, 3).map(x => `<button class="kart" data-git="malzeme/${x.m.id}" style="display:flex;gap:10px;align-items:center;padding:12px 14px;text-align:left"><span class="et ${x.tur === "uy" ? "e-uy" : "e-teh"}">${x.tur === "uy" ? "Stok" : "SKT"}</span><span style="font-size:13.5px;flex:1">${esc(x.yazi)}</span><span style="color:var(--ana);font-weight:600;font-size:13px">Gör ›</span></button>`).join("")}
     <div class="bas">Bugün teslim edilenler<button data-git="kasa" style="color:var(--ana);font-weight:600">Kasa ›</button></div>
     ${teslim.length ? `<div class="kart liste">${teslim.slice(0, 15).map(satirIslem).join("")}</div>` : `<div class="kart bos-durum">Bugün henüz teslim yok.</div>`}
@@ -351,7 +359,8 @@ function anaEkran() {
 }
 function isKart(i) {
   const h = hastaBul(i.hastaId), s = SONRAKI[i.durum], wa = h && waNo(h.tel);
-  return `<div class="kart iskart" data-git="is/${i.id}"><div class="ust2">${plakaHtml(h ? h.plaka : "", 1)}<span class="kucuk">${saat(i.ts)}${i.yikayan ? " · " + esc(i.yikayan) : ""}</span></div>
+  const bk = bekleme(i);
+  return `<div class="kart iskart" data-git="is/${i.id}"><div class="ust2" style="justify-content:flex-start;gap:8px">${h ? aracResim(h.id) : ""}${plakaHtml(h ? h.plaka : "", 1)}<span class="kucuk" style="margin-left:auto">${i.durum === "hazir" ? saat(i.hazirTs || i.ts) : bk ? `<span class="${i.durum === "sira" && bk > 20 ? "et e-uy" : ""}">⏱ ${bk} dk</span>` : saat(i.ts)}${i.yikayan ? " · " + esc(i.yikayan) : ""}</span></div>
     <div class="isad">${esc(kisaYazi(i) || "—")}</div>
     <div class="alt2"><b>${tl(i.toplam)}</b>${i.odendi ? `<span class="et e-iyi">${i.toplam ? "ödendi" : i.kurId ? "paket" : "bedava"}</span>` : ""}<span style="flex:1"></span>
       ${i.durum === "hazir" && wa ? `<a class="cip" href="https://wa.me/${wa}?text=${encodeURIComponent(hazirMetni(i))}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="text-decoration:none">💬 Haber ver</a>` : ""}
@@ -405,11 +414,11 @@ function yeniIc() {
     giris = `<label>Plaka<input class="girdi plaka-girdi" id="yPlaka" value="${esc(YENI.plaka)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="34 ABC 123 · ya da müşteri adı / telefon"></label>`;
     if (YENI.yeniArac) html += `<div class="serit ana" style="margin:0">＋ Yeni araç: <b>${esc(plakaYaz(YENI.plaka))}</b><button data-hdegis>Değiştir</button></div>
       <div class="ikili-g"><label>Müşteri adı (isteğe bağlı)<input class="girdi" id="yAd" value="${esc(YENI.ad)}" autocomplete="off"></label><label>Telefon (isteğe bağlı)<input class="girdi" id="yTel" type="tel" inputmode="tel" value="${esc(YENI.tel)}" placeholder="hazır mesajı için"></label></div>`;
-    else if (YENI.plaka.trim().length >= 2) html += `<div class="oneri">${es.map(x => { const s = hastaIslem(x.id)[0]; return `<button class="s" data-hsec="${x.id}" style="width:100%;text-align:left">${plakaHtml(x.plaka, 1)}<div style="flex:1;min-width:0"><b>${esc(x.ad || "—")}</b><small>${esc(siniflar()[(+x.sinif || 2) - 1])}${x.tel ? " · " + esc(x.tel) : ""}${s ? " · son " + tr(s.ts) : ""}</small></div></button>`; }).join("")}
+    else if (YENI.plaka.trim().length >= 2) html += `<div class="oneri">${es.map(x => { const s = hastaIslem(x.id)[0]; return `<button class="s" data-hsec="${x.id}" style="width:100%;text-align:left">${aracResim(x.id)}${plakaHtml(x.plaka, 1)}<div style="flex:1;min-width:0"><b>${esc(x.ad || "—")}</b><small>${esc(siniflar()[(+x.sinif || 2) - 1])}${x.tel ? " · " + esc(x.tel) : ""}${s ? " · son " + tr(s.ts) : ""}</small></div></button>`; }).join("")}
       ${q.length >= 4 && !A().hasta.some(x => plakaNorm(x.plaka) === q) ? `<button class="s" data-hyeni style="width:100%;text-align:left"><span class="av" style="background:var(--vurgu-acik);color:var(--yazi)">＋</span><div style="flex:1"><b>${esc(plakaYaz(YENI.plaka))} · yeni araç olarak ekle</b></div></button>` : ""}</div>`;
     if (!YENI.yeniArac) return giris + `<div id="yAlt">${html}<div class="bos-durum">Plakayı yazın. Araç daha önce geldiyse listeden seçin; paketi ve geçmişi görünür.</div></div>`;
   } else {
-    html += `<div class="kart" style="display:flex;gap:10px;align-items:center;padding:10px 12px">${plakaHtml(h.plaka)}<div style="flex:1;min-width:0"><b>${esc(h.ad || "Müşteri adı yok")}</b><small class="kucuk" style="display:block">${h.tel ? esc(h.tel) : "telefon yok"} · ${hastaIslem(h.id).filter(i => i.durum !== "randevu").length + 1}. geliş</small></div><button data-hdeg2 class="kucuk" style="color:var(--ana);font-weight:700">Değiştir</button></div>`;
+    html += `<div class="kart" style="display:flex;gap:10px;align-items:center;padding:10px 12px">${aracResim(h.id)}${plakaHtml(h.plaka)}<div style="flex:1;min-width:0"><b>${esc(h.ad || "Müşteri adı yok")}</b><small class="kucuk" style="display:block">${h.tel ? esc(h.tel) : "telefon yok"} · ${hastaIslem(h.id).filter(i => i.durum !== "randevu").length + 1}. geliş</small></div><button data-hdeg2 class="kucuk" style="color:var(--ana);font-weight:700">Değiştir</button></div>`;
     for (const k of (h.kurler || []).filter(k => !kurDurum(h, k).bitti)) { const d = kurDurum(h, k);
       html += YENI.kurId === k.id ? `<div class="serit iyi" style="margin:0">🎫 Paketten düşülecek: ${esc(k.ad)} · ${d.n + 1}. yıkama / ${k.toplam} · ücret alınmaz<button data-kurcik>Vazgeç</button></div>`
         : `<div class="serit ana" style="margin:0">🎫 ${esc(k.ad)} · kalan ${k.toplam - d.n} yıkama<button data-kursec="${k.id}">Paketten düş</button></div>`; }
@@ -546,7 +555,7 @@ async function durumDegis(id, d) {
   toast(`${h ? plakaYaz(h.plaka) : ""} · ${DURUM[d]}${d === "hazir" && h && waNo(h.tel) ? " · 💬 ile müşteriye haber verin" : ""}`); ciz();
 }
 function garantiKalemleri(i) { return (i.kalemler || []).filter(k => +k.garantiAy > 0).map(k => ({ad: k.ad, ay: +k.garantiAy, hastadan: !!k.hastadan})); }
-async function garantiNo() { const y = bugun().slice(0, 4), s = Object.assign({}, Veri.ayar("garantiSayac") || {}); s[y] = (s[y] || 0) + 1; await Veri.ayarYaz("garantiSayac", s); return `G${y}-${String(s[y]).padStart(4, "0")}`; }
+async function garantiNo() { const y = bugun().slice(0, 4), s = Object.assign({}, Veri.ayar("garantiSayac") || {}); s[y] = (s[y] || 0) + 1; await Veri.ayarYaz("garantiSayac", s); const harf = String(Veri.ayar("cihaz") || "X").replace(/[^0-9A-Z]/gi, "").slice(0, 2).toUpperCase(); return `G${y}-${harf}-${String(s[y]).padStart(4, "0")}`; }
 function teslimPerde(i) {
   const h = hastaBul(i.hastaId), gk = garantiKalemleri(i), bk = (i.kalemler || []).filter(k => +k.bakimAy > 0).sort((a, b) => b.bakimAy - a.bakimAy)[0];
   let od = i.odendi ? "" : (odemeTurleri()[0] || "Nakit");
@@ -568,11 +577,12 @@ function teslimPerde(i) {
       await Veri.kaydet("islem", i); driveYedekle(true);
       const wa = h && waNo(h.tel);
       perde(`<h3>✓ Teslim edildi</h3><p class="kucuk">${h ? esc(aracAd(h)) + " · " : ""}${tl(i.toplam)} · ${i.odendi ? (i.toplam ? esc(i.odeme) : "ücretsiz") : "veresiye"}</p>
-        ${i.garanti ? `<button class="btn koyu" data-garanti="${i.id}">🛡 Garanti belgesi · ${esc(i.garanti.no)}</button>` : ""}
-        <button class="btn ince" data-fis="${i.id}">🧾 Fiş</button>
+        ${i.garanti ? `<button class="btn koyu" data-gresim="${i.id}">🛡 Garanti belgesini resim olarak gönder</button><button class="btn ince" data-garanti="${i.id}">Belgeyi gör · ${esc(i.garanti.no)}</button>` : ""}
+        <button class="btn ince" data-fis="${i.id}">🧾 Bilgi fişi</button>
+        ${wa && Veri.ayar("googleYorum") ? `<a class="btn ince" href="https://wa.me/${wa}?text=${encodeURIComponent(yorumMetni(i))}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">⭐ Google'da yorum iste</a>` : ""}
         ${wa ? `<a class="btn ince" href="https://wa.me/${wa}?text=${encodeURIComponent(tesekkurMetni(i))}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">💬 Teşekkür mesajı${i.garanti ? " (garanti bilgisiyle)" : ""}</a>` : ""}
         <button class="btn ince" data-kapat>Kapat</button>`, s2 => { s2.querySelector("[data-kapat]").onclick = () => { kapat(); ciz(); };
-          s2.querySelectorAll("[data-garanti]").forEach(b => b.onclick = () => garantiBelgesi(b.dataset.garanti)); s2.querySelectorAll("[data-fis]").forEach(b => b.onclick = () => fisGoster(b.dataset.fis)); });
+          s2.querySelectorAll("[data-garanti]").forEach(b => b.onclick = () => garantiBelgesi(b.dataset.garanti)); s2.querySelectorAll("[data-gresim]").forEach(b => b.onclick = () => belgePaylas("garanti", i)); s2.querySelectorAll("[data-fis]").forEach(b => b.onclick = () => fisGoster(b.dataset.fis)); });
       ciz(); };
   });
 }
@@ -580,16 +590,10 @@ function tesekkurMetni(i) {
   const h = hastaBul(i.hastaId);
   return `Merhaba${h && h.ad ? " " + h.ad : ""}, ${h ? plakaYaz(h.plaka) + " plakalı aracınızı" : "aracınızı"} teslim ettik, teşekkür ederiz.${i.garanti ? `\nGaranti belge no: ${i.garanti.no}\n${i.garanti.kalemler.map(g => `• ${g.ad}: ${garYazi(g.ay)} (bitiş ${tr(g.bitis)})`).join("\n")}` : ""}${i.kontrol ? `\nBakım zamanı: ${tr(i.kontrol)} (size hatırlatacağız)` : ""}${isletmeImza()}`;
 }
-// yazdırma: belge görünür, ekranın geri kalanı gizlenir (telefon "PDF olarak kaydet" de sunar)
-function yazdir(html) {
-  let d = $("#yazdir"); if (!d) { d = document.createElement("div"); d.id = "yazdir"; document.body.appendChild(d); }
-  d.innerHTML = html; document.body.classList.add("yazdiriliyor");
-  setTimeout(() => { try { window.print(); } finally { setTimeout(() => document.body.classList.remove("yazdiriliyor"), 800); } }, 60);
-}
 const belgeBas = () => `<div class="b-ust"><b>${esc(Veri.ayar("isletmeAd") || "")}</b><span>${esc(Veri.ayar("isletmeTel") || "")}${Veri.ayar("isletmeAdres") ? " · " + esc(Veri.ayar("isletmeAdres")) : ""}</span></div>`;
 function garantiHtml(i) {
   const h = hastaBul(i.hastaId) || {}, g = i.garanti, mk = Object.entries(i.mikron || {});
-  const sart = Veri.ayar("garantiSart") || "Garanti, uygulanan ürün ve işçilik için geçerlidir. Kaza, darbe, yanlış yıkama (fırçalı otomatik yıkama, sert kimyasal) ve üçüncü kişilerin müdahalesi garanti dışıdır. Belirtilen bakımların yapılmaması garantiyi etkileyebilir. Başvuruda bu belge gösterilir.";
+  const sart = Veri.ayar("garantiSart") || GARANTI_SART;
   return `<div class="belge">${belgeBas()}<h2>GARANTİ BELGESİ</h2>
     <table class="b-t"><tr><td>Belge no</td><td><b>${esc(g.no)}</b></td><td>Tarih</td><td>${tr(g.bas)}</td></tr><tr><td>Plaka</td><td><b>${esc(plakaYaz(h.plaka))}</b></td><td>Müşteri</td><td>${esc(h.ad || "")}</td></tr>${h.marka || h.renk ? `<tr><td>Araç</td><td colspan="3">${esc([h.marka, h.renk].filter(Boolean).join(" · "))}</td></tr>` : ""}</table>
     <table class="b-t"><tr><th>Uygulama</th><th>Süre</th><th>Bitiş</th></tr>${g.kalemler.map(k => `<tr><td>${esc(k.ad)}${k.hastadan ? "<br><small>Ürün müşteriye aittir; ürün garantisi verilmez, yalnız işçilik garantisi geçerlidir.</small>" : ""}</td><td>${garYazi(k.ay)}</td><td>${tr(k.bitis)}</td></tr>`).join("")}</table>
@@ -600,21 +604,21 @@ function garantiHtml(i) {
 function garantiBelgesi(id) {
   const i = A().islem.find(x => x.id === id); if (!i || !i.garanti) return;
   const h = hastaBul(i.hastaId), wa = h && waNo(h.tel);
-  perde(`<div class="belge-on">${garantiHtml(i)}</div><button class="btn koyu" id="gY">🖨 Yazdır / PDF olarak kaydet</button>
-    ${wa ? `<a class="btn ince" href="https://wa.me/${wa}?text=${encodeURIComponent(tesekkurMetni(i))}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">💬 Garanti bilgisini WhatsApp'tan gönder</a>` : ""}<button class="btn ince" data-kapat>Kapat</button>
-    <p class="kucuk">PDF'yi WhatsApp'tan göndermek için: Yazdır → "PDF olarak kaydet" → kaydedilen dosyayı paylaşın.</p>`, s => {
-    s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#gY").onclick = () => yazdir(garantiHtml(i)); });
+  perde(`<div class="belge-on">${garantiHtml(i)}</div><div class="ikili-g"><button class="btn koyu" id="gP">💬 Paylaş (WhatsApp vb.)</button><button class="btn ince" id="gK">⬇ Telefona kaydet</button></div>
+    ${wa ? `<a class="btn ince" href="https://wa.me/${wa}?text=${encodeURIComponent(tesekkurMetni(i))}" target="_blank" rel="noopener" style="text-decoration:none;text-align:center">💬 Yalnız yazı olarak gönder</a>` : ""}<button class="btn ince" data-kapat>Kapat</button>
+    <p class="kucuk">Belge resim olarak gider; WhatsApp'ta doğrudan açılır.</p>`, s => {
+    s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#gP").onclick = () => belgePaylas("garanti", i); s.querySelector("#gK").onclick = () => belgePaylas("garanti", i, true); });
 }
 function fisHtml(i) {
   const h = hastaBul(i.hastaId);
-  return `<div class="belge fis">${belgeBas()}<p>${tr(i.teslimTs || i.ts)} ${saat(i.teslimTs || i.ts)}${h ? " · <b>" + esc(plakaYaz(h.plaka)) + "</b>" : ""}</p>
+  return `<div class="belge fis">${belgeBas()}<h2>BİLGİ FİŞİ</h2><p>${tr(i.teslimTs || i.ts)} ${saat(i.teslimTs || i.ts)}${h ? " · <b>" + esc(plakaYaz(h.plaka)) + "</b>" : ""}</p>
     <table class="b-t">${(i.kalemler || []).map(k => `<tr><td>${esc(k.ad)}${k.adet > 1 ? " ×" + k.adet : ""}</td><td style="text-align:right">${tl(k.adet * k.fiyat)}</td></tr>`).join("")}<tr><th>TOPLAM</th><th style="text-align:right">${tl(i.toplam)}</th></tr></table>
     <p>${i.odendi ? (i.toplam ? "Ödeme: " + esc(i.odeme || "") : "Ücretsiz" + (i.kurId ? " (paket)" : "")) : "Ödenmedi"}</p><p class="b-k">Bu belge bilgi fişidir, mali değeri yoktur.</p></div>`;
 }
 function fisGoster(id) {
   const i = A().islem.find(x => x.id === id); if (!i) return;
-  perde(`<div class="belge-on">${fisHtml(i)}</div><button class="btn koyu" id="fY">🖨 Yazdır</button><button class="btn ince" data-kapat>Kapat</button>`, s => {
-    s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#fY").onclick = () => yazdir(fisHtml(i)); });
+  perde(`<div class="belge-on">${fisHtml(i)}</div><div class="ikili-g"><button class="btn koyu" id="fP">💬 Paylaş (WhatsApp vb.)</button><button class="btn ince" id="fK">⬇ Telefona kaydet</button></div><button class="btn ince" data-kapat>Kapat</button>`, s => {
+    s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#fP").onclick = () => belgePaylas("fis", i); s.querySelector("#fK").onclick = () => belgePaylas("fis", i, true); });
 }
 // fotoğraflar: telefonda küçültülür (1280 px), yalnız bu cihazda saklanır
 async function fotoKucult(file) {
@@ -645,8 +649,15 @@ async function fotoAlanDoldur(u, i) {
 function hastaEkran(id) {
   const h = hastaBul(id); if (!h) return `${ust("Araç bulunamadı", "", true)}<main class="ic"></main>${altCubuk("hastalar")}`;
   const is = hastaIslem(id).filter(i => i.durum !== "randevu"), od = is.filter(i => i.odendi).reduce((s, i) => s + i.toplam, 0), b = borc(id), wa = waNo(h.tel), sd = sadakatDurum(h), gar = is.filter(i => i.garanti);
+  const tes = is.filter(i => i.durum === "teslim"), top = is.reduce((s, i) => s + i.toplam, 0), sonG = is[0], ilkG = is[is.length - 1];
+  const aralik = is.length > 1 ? Math.round(gunFark(ilkG.ts, sonG.ts) / (is.length - 1)) : null, say = {};
+  is.forEach(i => (i.kalemler || []).forEach(k => { say[k.ad] = (say[k.ad] || 0) + k.adet; })); const enCok = Object.entries(say).sort((a, b) => b[1] - a[1]).slice(0, 2);
   return `${ust(esc(plakaYaz(h.plaka)), [h.ad, h.tel, siniflar()[(+h.sinif || 2) - 1]].filter(Boolean).map(esc).join(" · "), true, `<button class="geri" data-hduz="${h.id}" aria-label="Düzenle">✎</button>`)}
-  <main class="ic">${h.not ? `<div class="serit ana" style="margin:0">📝 ${esc(h.not)}</div>` : ""}${h.marka || h.renk ? `<div class="kucuk">🚗 ${esc([h.marka, h.renk].filter(Boolean).join(" · "))}</div>` : ""}
+  <main class="ic">${AFOTO.has(h.id) ? `<button class="arac-foto" data-aracfoto="${h.id}">${aracResim(h.id, "")}<span>📷 Araç resmini değiştir</span></button>` : `<button class="btn ince" data-aracfoto="${h.id}" style="padding:12px">📷 Araç resmi ekle · aracı resminden tanıyın</button>`}
+    ${h.not ? `<div class="serit ana" style="margin:0">📝 ${esc(h.not)}</div>` : ""}
+    <div class="ist"><div class="kart"><small>İlk kayıt</small><b>${h.ilk ? tr(h.ilk) : "–"}</b></div><div class="kart"><small>Son geliş</small><b>${sonG ? (sonG.ts.startsWith(bugun()) ? "bugün" : gunFark(sonG.ts, bugun()) + " gün önce") : "–"}</b></div>
+      <div class="kart"><small>Toplam harcama</small><b>${tl(top)}</b></div><div class="kart"><small>Ortalama geliş</small><b>${aralik != null ? (aralik ? aralik + " günde bir" : "aynı gün") : "–"}</b></div></div>
+    ${enCok.length || h.marka || h.renk ? `<div class="kart kucuk">${enCok.length ? "⭐ En çok: " + enCok.map(([k, n]) => esc(k) + " (" + n + ")").join(" · ") : ""}${h.marka || h.renk ? `${enCok.length ? " · " : ""}🚗 ${esc([h.marka, h.renk].filter(Boolean).join(" · "))}` : ""}</div>` : ""}
     <div class="uc"><div class="kart"><small>Geliş</small><b>${is.length}</b></div><div class="kart"><small>Ödenen</small><b>${tl(od)}</b></div><div class="kart"><small>Borç</small><b style="color:${b ? "var(--uyari)" : "var(--iyi)"}">${tl(b)}</b></div></div>
     <div style="display:flex;gap:8px"><button class="btn ana" data-git="yeni/${h.id}" style="flex:1;padding:12px;font-size:15px">＋ Araç al</button>
       ${wa ? `<a class="btn ince" href="https://wa.me/${wa}" target="_blank" rel="noopener" style="width:auto;padding:12px 16px;text-decoration:none">💬</a><a class="btn ince" href="tel:${esc(h.tel)}" style="width:auto;padding:12px 16px;text-decoration:none">☎</a>` : ""}</div>
@@ -654,7 +665,7 @@ function hastaEkran(id) {
     ${kontrolSerit(h)}${paketKart(h)}
     ${sd ? `<div class="kart kucuk">🎁 Sadakat: <b>${sd.n} / ${sd.N}</b> yıkama${sd.hak ? " · sıradaki yıkama bedava" : ""}</div>` : ""}
     ${gar.length ? `<div class="bas">Garantiler</div><div class="kart liste">${gar.map(i => { const son = i.garanti.kalemler.map(g => g.bitis).sort().pop(); return `<div class="s" data-garanti2="${i.id}"><div class="m"><b>${esc(i.garanti.no)} · ${esc(i.garanti.kalemler.map(g => g.ad).join(", "))}</b><small>bitiş ${tr(son)}</small></div><span class="et ${son < bugun() ? "e-teh" : "e-iyi"}">${son < bugun() ? "bitti" : "geçerli"}</span></div>`; }).join("")}</div>` : ""}
-    <div class="bas">Gelişler</div>
+    <div class="bas">Geçmiş · ${is.length} iş${tes.length !== is.length ? " · " + tes.length + " teslim" : ""}</div>
     ${is.length ? `<div class="kart zaman">${is.map(i => `<button class="g" data-git="is/${i.id}" style="text-align:left;width:100%"><div class="tar"><b>${i.ts.slice(8, 10)}</b><small>${AYLAR[+i.ts.slice(5, 7) - 1]}${i.ts.slice(0, 4) !== bugun().slice(0, 4) ? " " + i.ts.slice(2, 4) : ""}</small></div><div class="d"><b>${esc(kisaYazi(i) || "İş")}</b><p>${esc(DURUM[i.durum] || "")}${i.yikayan ? " · " + esc(i.yikayan) : ""}${i.kurId ? " · 🎫 paket " + i.kurSira + ". yıkama" : ""}${i.bedava ? " · 🎁 bedava" : ""}${i.garanti ? " · 🛡 " + esc(i.garanti.no) : ""}</p><div class="tut">${tl(i.toplam)} · ${i.odendi ? (i.toplam ? esc(i.odeme || "ödendi") : "ücretsiz") : `<span class="et e-uy">ödenmedi</span>`}</div></div></button>`).join("")}</div>` : `<div class="kart bos-durum">Henüz iş yok.</div>`}
   </main>${altCubuk("hastalar")}`;
 }
@@ -705,17 +716,19 @@ const HF = {q: "", f: "hepsi"};
 function hastalarEkran() {
   return `${ust("Araçlar", A().hasta.length + " kayıt", false, `<button class="yuv" style="background:var(--vurgu);color:var(--yazi)" data-hyenikart aria-label="Yeni araç">＋</button>`)}
   ${seritler()}<main class="ic" data-baglan="hastalar"><label class="ara">⌕ <input id="hAra" value="${esc(HF.q)}" placeholder="Plaka, ad ya da telefon" autocomplete="off"></label>
-    <div class="cips">${[["hepsi", "Hepsi"], ["hafta", "Bu hafta gelen"], ["borc", "Borcu olan"], ["paket", "Paketi olan"], ["garanti", "Garantisi süren"]].map(([k, t]) => `<button class="cip ${HF.f === k ? "on" : ""}" data-hf="${k}">${t}${k === "borc" ? " · " + A().hasta.filter(h => borc(h.id) > 0).length : ""}</button>`).join("")}</div>
+    <div class="cips">${[["hepsi", "Hepsi"], ["hafta", "Bu hafta gelen"], ["ozledik", "30+ gün gelmeyen"], ["borc", "Borcu olan"], ["paket", "Paketi olan"], ["garanti", "Garantisi süren"]].map(([k, t]) => `<button class="cip ${HF.f === k ? "on" : ""}" data-hf="${k}">${t}${k === "borc" ? " · " + A().hasta.filter(h => borc(h.id) > 0).length : ""}</button>`).join("")}</div>
     <div id="hListe">${hastaListe()}</div></main>${altCubuk("hastalar")}`;
 }
 function hastaListe() {
+  if (HF.f === "ozledik") { const L = ozlenenler().filter(x => !HF.q.trim() || plakaNorm(x.h.plaka).includes(plakaNorm(HF.q)) || kucuk(x.h.ad).includes(kucuk(HF.q.trim())));
+    return L.length ? `<p class="kucuk" style="margin:0 4px">30 günden uzun gelmeyen araçlar. 💬 ile "sizi özledik" mesajı gider; gönderdiğiniz araç 14 gün listede görünmez.</p><div class="kart liste">${L.map(ozledikSatir).join("")}</div>` : `<div class="kart bos-durum">30 günden uzun gelmeyen araç yok.</div>`; }
   const q = plakaNorm(HF.q), qk = kucuk(HF.q.trim()), qd = HF.q.replace(/\D/g, ""), hafta = gunEkle(bugun(), -7), t = bugun();
   const L = A().hasta.map(h => { const is = hastaIslem(h.id).filter(i => i.durum !== "randevu"); return {h, s: (is[0] || {}).ts || "", b: borc(h.id), n: is.length, od: is.filter(i => i.odendi).reduce((s, i) => s + i.toplam, 0), pk: (h.kurler || []).some(k => !kurDurum(h, k).bitti), gr: is.some(i => i.garanti && i.garanti.kalemler.some(g => g.bitis >= t))}; })
     .filter(x => (!HF.q.trim() || plakaNorm(x.h.plaka).includes(q) || kucuk(x.h.ad).includes(qk) || (qd.length >= 3 && String(x.h.tel || "").replace(/\D/g, "").includes(qd)))
       && (HF.f === "hepsi" || (HF.f === "hafta" && x.s >= hafta) || (HF.f === "borc" && x.b > 0) || (HF.f === "paket" && x.pk) || (HF.f === "garanti" && x.gr)))
     .sort((a, b) => (b.s || b.h.ilk || "").localeCompare(a.s || a.h.ilk || ""));
   if (!L.length) return `<div class="kart bos-durum">${A().hasta.length ? "Eşleşen araç yok." : "<b>Henüz araç yok</b>İlk aracı \"＋ Araç al\" ile aldığınızda kendiliğinden eklenir."}</div>`;
-  return `<div class="kart liste">${L.slice(0, 300).map(x => `<div class="s" data-git="hasta/${x.h.id}">${plakaHtml(x.h.plaka, 1)}<div class="m"><b>${esc(x.h.ad || "—")}</b><small>${x.s ? (x.s.startsWith(t) ? "Bugün" : x.s.startsWith(gunEkle(t, -1)) ? "Dün" : tr(x.s)) : "iş yok"} · ${x.n} geliş${x.pk ? " · 🎫 paket" : ""}${x.gr ? " · 🛡" : ""}${x.b ? ` · <span class="et e-uy">${tl(x.b)} borç</span>` : ""}</small></div><div class="t">${tl(x.od)}</div></div>`).join("")}</div>`;
+  return `<div class="kart liste">${L.slice(0, 300).map(x => `<div class="s" data-git="hasta/${x.h.id}">${aracResim(x.h.id)}${plakaHtml(x.h.plaka, 1)}<div class="m"><b>${esc(x.h.ad || "—")}</b><small>${x.s ? (x.s.startsWith(t) ? "Bugün" : x.s.startsWith(gunEkle(t, -1)) ? "Dün" : tr(x.s)) : "iş yok"} · ${x.n} geliş${x.pk ? " · 🎫 paket" : ""}${x.gr ? " · 🛡" : ""}${x.b ? ` · <span class="et e-uy">${tl(x.b)} borç</span>` : ""}</small></div><div class="t">${tl(x.od)}</div></div>`).join("")}</div>`;
 }
 
 // 6-7 · hizmet ve ürün listesi
@@ -726,10 +739,14 @@ function malzemelerEkran() {
   ${seritler()}<main class="ic" data-baglan="malzemeler"><label class="ara">⌕ <input id="mAra" value="${esc(MF.q)}" placeholder="Hizmet ya da ürün ara" autocomplete="off"></label>
     ${yon() ? `<div class="ikili-g"><button class="btn ince" data-git="malzeme/yeni" style="padding:10px">＋ Hizmet</button><button class="btn ince" data-git="malzeme/yeniurun" style="padding:10px">＋ Ürün</button></div>` : ""}
     <button class="btn ince" data-a="siparis" style="padding:10px">📋 Tedarikçiye sipariş listesi${n ? ` · <b style="color:var(--uyari)">${n} ürün azaldı</b>` : ""}</button>
-    <div class="cips">${["Hepsi", ...gruplar()].map(g => `<button class="cip ${MF.g === g ? "on" : ""}" data-mg="${esc(g)}">${esc(g)}</button>`).join("")}</div>
+    <div class="cips">${["Hepsi", ...gruplar(), "🎫 Paketler"].map(g => `<button class="cip ${MF.g === g ? "on" : ""}" data-mg="${esc(g)}">${esc(g)}</button>`).join("")}</div>
     <div id="mListe">${malzemeListe()}</div></main>${altCubuk("malzeme")}`;
 }
 function malzemeListe() {
+  if (MF.g === "🎫 Paketler") { const P = paketler(), aktif = ad => A().hasta.filter(h => (h.kurler || []).some(k => k.ad === ad && !kurDurum(h, k).bitti)).length;
+    return `<p class="kucuk" style="margin:0 4px">Müşteri paketi peşin alır; her gelişte "Paketten düş" ile o yıkama ücretsiz yazılır. Araç alırken "🎫 Paket sat" ile satılır.</p>
+      <div class="kart liste">${P.map(p => `<div class="s" style="cursor:default"><div class="m"><b>${esc(p.ad)}</b><small>${p.adet} yıkama · ${tl(p.fiyat)} · ${aktif(p.ad)} araçta devam ediyor</small></div></div>`).join("") || `<div class="bos-durum">Tanımlı paket yok</div>`}</div>
+      ${yon() ? `<button class="btn ince" data-a="paketler" style="padding:10px">✎ Paketleri düzenle / ＋ paket ekle</button>` : ""}`; }
   const q = kucuk(MF.q.trim()), L = A().malzeme.filter(m => (MF.g === "Hepsi" || m.grup === MF.g) && (!q || kucuk(m.ad).includes(q)));
   if (!L.length) return `<div class="kart bos-durum">${A().malzeme.length ? "Eşleşen kayıt yok." : "<b>Liste boş</b>＋ ile ilk hizmeti ekleyin."}</div>`;
   return `<div class="kart" style="padding:4px 14px">${[...gruplar(), ...[...new Set(A().malzeme.map(m => m.grup))].filter(g => !gruplar().includes(g))].map(g => { const gl = L.filter(m => m.grup === g).sort((a, b) => a.ad.localeCompare(b.ad, "tr")); return gl.length ? `<div class="kat">${esc(g.toLocaleUpperCase("tr"))}</div>` + gl.map(m => {
@@ -832,7 +849,7 @@ function ayarlarEkranP() {          // personel: yalnız kendi işleri
   return `${ust("Ayarlar", esc(OTURUM.kim.ad))}${seritler()}<main class="ic" style="gap:10px">
     <div class="grup">Oturum</div><div class="kart ayar" style="padding:2px 14px">
       <button class="s" data-a="kilitle" style="width:100%;text-align:left"><div>${esc(OTURUM.kim.ad)} · kişi değiştir<small>Telefonu başkası kullanacaksa dokunun · şifre ekranına döner</small></div><span class="ok">⇄</span></button>
-      <button class="s" data-a="pin" style="width:100%;text-align:left"><div>Şifremi değiştir<small>4 hane</small></div><span class="ok">›</span></button></div>
+      <button class="s" data-a="pin" style="width:100%;text-align:left"><div>Şifremi değiştir<small>4–8 rakam</small></div><span class="ok">›</span></button></div>
     <div class="grup">Ekip · birden fazla telefon</div><div class="kart ayar" style="padding:2px 14px">
       <button class="s" data-a="ekipPaylas" style="width:100%;text-align:left"><div>Defteri paylaş<small>Vardiya sonunda ekip arkadaşınıza WhatsApp'tan gönderin</small></div><span class="ok">›</span></button>
       <button class="s" data-a="ekipBirlestir" style="width:100%;text-align:left"><div>Gelen defteri birleştir<small>Yeni kayıtlar eklenir, aynı kayıtlar bir kez kalır</small></div><span class="ok">›</span></button></div>
@@ -927,9 +944,9 @@ function ayarlarEkran() {
     ${grup("Paket ve sadakat", sat("paketler", "Yıkama paketleri", paketler().map(p => esc(p.ad) + " · " + tl(p.fiyat)).join(" / ") || "Paket yok") + sat("sadakat", "Sadakat · bedava yıkama", N ? `Her ${N}. yıkama bedava` : "Kapalı"))}
     ${grup("Çalışanlar ve prim", sat("calisanlar", "Yıkayan / usta adları", (Veri.ayar("calisanlar") || []).map(esc).join(" · ") || "Araç alırken kimin yıkadığı seçilir") + sat("prim", "Prim", +P.yikama || +P.detay ? `Yıkama başı ${tl(P.yikama)} · detay %${P.detay}` : "Ayarlanmadı")
       + sat("personel", "Personel girişi ve şifreleri", personelVar() ? personeller().map(p => esc(p.ad)).join(" · ") : "Ortak telefonda herkes kendi şifresiyle girer · maliyet ve kârı yalnız siz görürsünüz") + (personelVar() ? sat("kilitle", "Kişi değiştir", "Şifre ekranına döner", `<span class="ok">⇄</span>`) : ""))}
-    ${grup("Müşteriye giden yazılar", sat("hazirMesaj", '"Aracınız hazır" mesajı', esc((Veri.ayar("hazirMesaj") || "Merhaba{ad}, {plaka} plakalı aracınız hazır.").slice(0, 80))) + sat("garantiSart", "Garanti belgesi koşulları", "Belgenin altında yazan metin"))}
+    ${grup("Müşteriye giden yazılar", sat("hazirMesaj", '"Aracınız hazır" mesajı', esc((Veri.ayar("hazirMesaj") || "Merhaba{ad}, {plaka} plakalı aracınız hazır.").slice(0, 80))) + sat("garantiSart", "Garanti belgesi koşulları", "Belgenin altında yazan metin") + sat("googleYorum", "Google yorum bağlantısı", Veri.ayar("googleYorum") ? esc(Veri.ayar("googleYorum").slice(0, 60)) : "Teslimden sonra \"Google'da yorum iste\" düğmesi için"))}
     ${grup("Ekip · birden fazla telefon", sat("ekipPaylas", "Defteri paylaş", "Gün sonunda diğer telefona WhatsApp'tan gönderin") + sat("ekipBirlestir", "Gelen defteri birleştir", "Yeni kayıtlar eklenir, aynı kayıtlar bir kez kalır") + sat("ekipSifre", "Ekip şifresi", Veri.ayar("ekipSifre") ? "Belirlendi · ekipteki herkeste aynı olmalı" : "Paylaşım dosyasını korur · herkes aynısını yazar"))}
-    ${grup("Güvenlik ve yedek", sat("pin", personelVar() ? "Yönetici şifresi" : "Giriş şifresi", `4 hane · ${Veri.ayar("kilitDk") || 2} dk arka planda kalınca kilitlenir`)
+    ${grup("Güvenlik ve yedek", sat("pin", personelVar() ? "Yönetici şifresi" : "Giriş şifresi", `4–8 rakam · ${Veri.ayar("kilitDk") || 2} dk arka planda kalınca kilitlenir`)
       + sat("google", googleBagli() ? "Google · " + esc(G.e) : "Google ile bağla", googleBagli() ? (Veri.ayar("sonDrive") ? "Son Drive yedeği " + esc(gunSaat(yerel(new Date(Veri.ayar("sonDrive"))))) : "Drive'a henüz yedek gitmedi") : "Drive'a otomatik yedek · telefon değişse de kaybolmaz · isteğe bağlı", `<span class="et ${googleBagli() ? "e-iyi" : "e-ana"}">${googleBagli() ? "Bağlı" : "Bağla"}</span>`)
       + sat("yedek", "Yedeği gönder", `${sy ? "Son yedek " + esc(gunSaat(yerel(new Date(sy)))) : "Henüz yedek alınmadı"} · fotoğraflar hariç`) + sat("geriyukle", "Yedekten geri yükle", "Yeni telefonda ya da silinip kurulunca"))}
     ${grup("Program", sat("kopyala", "Lisans", `Cihaz kodu <b style="font-family:monospace">${esc(Veri.ayar("cihaz") || "")}</b> · dokunup kopyalayın`, `<span class="et ${d.acik ? (d.tur === "deneme" ? "e-uy" : "e-iyi") : "e-teh"}">${esc(d.yaz || "…")}</span>`)
@@ -972,6 +989,11 @@ const EYLEM_OTO = {
   garantiSart() {
     perde(`<h3>Garanti belgesi koşulları</h3><p class="kucuk">Garanti belgesinin altında bu metin yazar. Boş bırakırsanız hazır metin kullanılır.</p><textarea class="girdi" id="gsT" rows="7">${esc(Veri.ayar("garantiSart") || "")}</textarea><button class="btn koyu" id="gsK">Kaydet</button>`, s => {
       s.querySelector("#gsK").onclick = async () => { await Veri.ayarYaz("garantiSart", s.querySelector("#gsT").value.trim()); kapat(); toast("Kaydedildi"); }; });
+  },
+  googleYorum() {
+    perde(`<h3>Google yorum bağlantısı</h3><p class="kucuk">Google İşletme Profilinizde "Yorum isteyin" / "Paylaş" bölümündeki bağlantıyı buraya yapıştırın. Araç teslim edilince "⭐ Google'da yorum iste" düğmesi müşteriye bu bağlantıyı WhatsApp'tan gönderir.</p>
+      <input class="girdi" id="gyT" value="${esc(Veri.ayar("googleYorum") || "")}" placeholder="https://g.page/r/..." autocomplete="off"><button class="btn koyu" id="gyK">Kaydet</button>`, s => {
+      s.querySelector("#gyK").onclick = async () => { const v = s.querySelector("#gyT").value.trim(); if (v && !/^https:\/\/\S+$/.test(v)) return toast("Bağlantı https:// ile başlamalı"); await Veri.ayarYaz("googleYorum", v); kapat(); toast("Kaydedildi"); ciz(); }; });
   },
   calisanlar() {
     perde(`<h3>Yıkayan / usta adları</h3><p class="kucuk">Her satıra bir ad. Araç alırken ve işte "kim yıkadı" olarak seçilir, kasada prim hesabında kullanılır. Personel girişi açtıysanız onların adları kendiliğinden listede.</p>
@@ -1069,6 +1091,111 @@ function siparisListesi() {
   });
 }
 
+// ---------------------------------------------------------------- 1.1.0 araç resmi, Drive fotoğraf yedeği, belge resmi, sizi özledik, pano süreleri, lisans ekranı
+// araç resimleri (foto deposunda tur "arac", isId = araç kimliği) açılışta belleğe alınır: panoda ve listede hemen görünür
+const AFOTO = new Map();
+async function aracFotoYukle() { AFOTO.forEach(u => URL.revokeObjectURL(u)); AFOTO.clear(); for (const f of await Veri.fotolar()) if (f.tur === "arac") AFOTO.set(f.isId, URL.createObjectURL(f.blob)); }
+const aracResim = (hId, sinif) => AFOTO.has(hId) ? `<img class="${sinif || "thumb"}" src="${AFOTO.get(hId)}" alt="">` : "";
+function aracFotoSec(hId) {
+  if (!izinVar("fotoğraf")) return;
+  fotoSec(async blob => { for (const f of (await Veri.fotolar()).filter(f => f.tur === "arac" && f.isId === hId)) await Veri.fotoSil(f.id);
+    await fotoKaydet(hId, "arac", blob); await aracFotoYukle(); toast("Araç resmi kaydedildi"); ciz(); driveYedekle(true); });
+}
+// Drive: yeni fotoğraflar her yedeklemede (en çok 20'si) ayrı dosya olarak gider; geri yüklemede inmeyenler indirilir
+async function fotoDriveEsitle() {
+  const gitti = new Set(Veri.ayar("fotoDrive") || []), L = (await Veri.fotolar()).filter(f => !gitti.has(f.id)).slice(0, 20);
+  for (const f of L) { await Google.fotoYukle(f); gitti.add(f.id); }
+  if (L.length) await Veri.ayarYaz("fotoDrive", [...gitti].slice(-20000));
+  return L.length;
+}
+async function fotoDriveGetir() {
+  const yerel = new Set((await Veri.fotolar()).map(f => f.id)), L = (await Google.fotoListe()).filter(f => !yerel.has(f.id)); let n = 0;
+  for (const f of L) { try { await Veri.fotoYaz({id: f.id, isId: f.isId, tur: f.tur, ts: f.ts, blob: await Google.fotoIndir(f.driveId)}); n++; } catch (e) { /* sıradaki */ } }
+  await Veri.ayarYaz("fotoDrive", [...new Set([...(Veri.ayar("fotoDrive") || []), ...L.map(f => f.id)])]);
+  await aracFotoYukle(); return n;
+}
+async function fotoYetimTemizle() {          // geri yüklemeden sonra artık olmayan işlerin / araçların fotoğrafları
+  const var_ = new Set([...A().islem.map(i => i.id), ...A().hasta.map(h => h.id)]);
+  for (const f of await Veri.fotolar()) if (!var_.has(f.isId)) await Veri.fotoSil(f.id);
+  await aracFotoYukle();
+}
+// garanti belgesi ve fiş resim olarak (WhatsApp'ta doğrudan açılır, yazıcı gerekmez)
+function belgeResmi(tur, i) {
+  const W = 1080, P = 64, c = document.createElement("canvas"); c.width = W; c.height = 4200;
+  const x = c.getContext("2d"), h = hastaBul(i.hastaId) || {}, F = "system-ui,-apple-system,Segoe UI,Roboto,sans-serif";
+  x.fillStyle = "#fff"; x.fillRect(0, 0, W, c.height); x.fillStyle = "#111"; x.textBaseline = "top";
+  let y = P;
+  const yaz = (t, boy, kalin, renk, hiza) => { x.font = `${kalin ? 700 : 400} ${boy}px ${F}`; x.fillStyle = renk || "#111"; const satirlar = []; let s = "";
+    for (const k of String(t).split(" ")) { const d = s ? s + " " + k : k; if (x.measureText(d).width > W - 2 * P && s) { satirlar.push(s); s = k; } else s = d; } if (s) satirlar.push(s);
+    for (const l of satirlar) { x.textAlign = hiza || "left"; x.fillText(l, hiza === "center" ? W / 2 : hiza === "right" ? W - P : P, y); y += boy * 1.35; } x.textAlign = "left"; };
+  const cizgi = (k) => { x.fillStyle = "#111"; x.fillRect(P, y, W - 2 * P, k || 2); y += 18; };
+  const satir = (a, b, kalin) => { x.font = `${kalin ? 700 : 400} 30px ${F}`; x.fillStyle = "#111"; const bw = x.measureText(b).width; let a2 = a; while (x.measureText(a2).width > W - 2 * P - bw - 30 && a2.length > 4) a2 = a2.slice(0, -2); if (a2 !== a) a2 += "…";
+    x.fillText(a2, P, y); x.textAlign = "right"; x.fillText(b, W - P, y); x.textAlign = "left"; y += 44; };
+  yaz(Veri.ayar("isletmeAd") || "", 44, true); yaz([Veri.ayar("isletmeTel"), Veri.ayar("isletmeAdres")].filter(Boolean).join(" · "), 26, false, "#444"); y += 6; cizgi(3);
+  if (tur === "garanti") {
+    const g = i.garanti; yaz("GARANTİ BELGESİ", 40, true, "#111", "center"); y += 8;
+    satir("Belge no", g.no, true); satir("Tarih", tr(g.bas)); satir("Plaka", plakaYaz(h.plaka || ""), true); if (h.ad) satir("Müşteri", h.ad); if (h.marka || h.renk) satir("Araç", [h.marka, h.renk].filter(Boolean).join(" · "));
+    y += 8; cizgi(); yaz("UYGULAMA · SÜRE · BİTİŞ", 26, true, "#555");
+    for (const k of g.kalemler) { satir(k.ad, garYazi(k.ay) + " · " + tr(k.bitis), true); if (k.hastadan) yaz("Ürün müşteriye aittir; ürün garantisi verilmez, yalnız işçilik garantisi geçerlidir.", 24, false, "#555"); }
+    const mk = Object.entries(i.mikron || {}); if (mk.length) { y += 8; cizgi(); yaz("BOYA KALINLIĞI (µm) · ÖNCE / SONRA", 26, true, "#555"); for (const [p, v] of mk) satir(p, `${v[0] || "—"} / ${v[1] || "—"}`); }
+    if (i.kontrol) { y += 8; yaz(`Bakım: ${i.kontrolNot || ""} · ${tr(i.kontrol)}`, 28, true); }
+    y += 10; cizgi(1); yaz(Veri.ayar("garantiSart") || GARANTI_SART, 22, false, "#444");
+  } else {
+    yaz("BİLGİ FİŞİ", 36, true, "#111", "center"); y += 4;
+    satir(tr(i.teslimTs || i.ts) + " " + saat(i.teslimTs || i.ts), h.plaka ? plakaYaz(h.plaka) : "", true); y += 4; cizgi(1);
+    for (const k of i.kalemler || []) satir(k.ad + (k.adet > 1 ? " ×" + k.adet : ""), tl(k.adet * k.fiyat));
+    cizgi(2); satir("TOPLAM", tl(i.toplam), true); yaz(i.odendi ? (i.toplam ? "Ödeme: " + (i.odeme || "") : "Ücretsiz" + (i.kurId ? " (paket)" : "")) : "Ödenmedi", 28);
+    y += 10; yaz("Bu belge bilgi fişidir, mali değeri yoktur.", 22, false, "#555");
+  }
+  y += P; const son = document.createElement("canvas"); son.width = W; son.height = y; son.getContext("2d").drawImage(c, 0, 0);
+  return new Promise(ok => son.toBlob(ok, "image/png"));
+}
+async function belgePaylas(tur, i, kaydet) {
+  const h = hastaBul(i.hastaId), ad = `${tur === "garanti" ? i.garanti.no : "fis-" + (h ? plakaNorm(h.plaka) : "satis")}-${(i.teslimTs || i.ts).slice(0, 10)}.png`, blob = await belgeResmi(tur, i);
+  const dosya = new File([blob], ad, {type: "image/png"});
+  try { if (!kaydet && navigator.canShare && navigator.canShare({files: [dosya]})) { await navigator.share({files: [dosya], title: ad}); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = ad; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  toast(kaydet ? "Resim telefona kaydedildi (İndirilenler)" : "Resim indirildi · WhatsApp'tan ekleyebilirsiniz");
+}
+const yorumMetni = i => { const h = hastaBul(i.hastaId); return `Merhaba${h && h.ad ? " " + h.ad : ""}, bizi tercih ettiğiniz için teşekkür ederiz. Memnun kaldıysanız Google'da birkaç kelimeyle değerlendirir misiniz?\n${Veri.ayar("googleYorum")}${isletmeImza()}`; };
+// sizi özledik: 30 günden uzun gelmeyen araçlar (WhatsApp gönderilince 14 gün listeden çıkar)
+function ozlenenler() {
+  const t = bugun(), g = Veri.ayar("ozledik") || {}, out = [];
+  for (const h of A().hasta) {
+    const is = hastaIslem(h.id); if (is.some(i => i.durum === "randevu" || ["sira", "islemde", "hazir"].includes(i.durum))) continue;
+    const son = is.find(i => i.durum === "teslim"); if (!son) continue;
+    const gun = gunFark((son.teslimTs || son.ts).slice(0, 10), t); if (gun < 30 || gun > 365) continue;
+    if (g[h.id] && gunFark(g[h.id], t) < 14) continue;
+    const kalan = (h.kurler || []).filter(k => !kurDurum(h, k).bitti).reduce((s, k) => s + k.toplam - kurDurum(h, k).n, 0);
+    out.push({h, gun, n: is.filter(i => i.durum === "teslim").length, kalan});
+  }
+  return out.sort((a, b) => b.n - a.n || a.gun - b.gun);
+}
+const ozledikMetni = x => `Merhaba${x.h.ad ? " " + x.h.ad : ""}, sizi özledik! ${plakaYaz(x.h.plaka)} plakalı aracınızı bekliyoruz.${x.kalan ? ` Paketinizde ${x.kalan} yıkama hakkınız duruyor.` : ""}${isletmeImza()}`;
+const ozledikSatir = x => { const wa = waNo(x.h.tel); return `<div class="s" data-git="hasta/${x.h.id}">${aracResim(x.h.id)}${plakaHtml(x.h.plaka, 1)}<div class="m"><b>${esc(x.h.ad || "—")}</b><small>${x.gun} gün önce · ${x.n} geliş${x.kalan ? " · paketinde " + x.kalan + " yıkama" : ""}</small></div>${wa ? `<a class="t" data-ozl="${x.h.id}" href="https://wa.me/${wa}?text=${encodeURIComponent(ozledikMetni(x))}" target="_blank" rel="noopener" style="font-size:21px;text-decoration:none" aria-label="WhatsApp">💬</a>` : `<span class="t kucuk">telefon yok</span>`}</div>`; };
+// pano süreleri
+const dkFark = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 6e4));
+const bekleme = i => i.durum === "sira" ? dkFark(i.ts, yerel(new Date()).slice(0, 19)) : i.durum === "islemde" ? dkFark(i.islemdeTs || i.ts, yerel(new Date()).slice(0, 19)) : 0;
+function gunOzet() {
+  const t = bugun(), L = A().islem.filter(i => i.ts.startsWith(t) && i.islemdeTs && i.hazirTs), B = A().islem.filter(i => i.ts.startsWith(t) && i.islemdeTs);
+  const ort = a => a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : null;
+  const yik = ort(L.map(i => dkFark(i.islemdeTs, i.hazirTs))), bek = ort(B.map(i => dkFark(i.ts, i.islemdeTs)));
+  const saatler = {}; for (const i of A().islem.filter(i => i.ts >= gunEkle(t, -30) && i.durum !== "randevu" && i.bolum !== "urun")) { const s = +i.ts.slice(11, 13); saatler[s] = (saatler[s] || 0) + 1; }
+  let enS = null, enN = 0; for (let s = 6; s < 23; s++) { const n = (saatler[s] || 0) + (saatler[s + 1] || 0); if (n > enN) { enN = n; enS = s; } }
+  return {yik, bek, yogun: enN >= 3 ? `${String(enS).padStart(2, "0")}–${String(enS + 2).padStart(2, "0")}` : null};
+}
+// lisans yok: program açılmaz (deneme hariç); kayıtlar silinmez, lisans gelince kaldığı yerden devam eder
+function lisansEkrani(u) {
+  const d = OTURUM.durum || {};
+  u.innerHTML = `<main class="kilit" style="gap:14px;padding:24px"><div class="logo">🔒</div><div><b style="font-size:21px">${esc(d.yaz || "Lisans gerekli")}</b>
+    <div class="kucuk" style="margin-top:6px;max-width:340px">Oto Defteri lisans olmadan kullanılamaz. Kayıtlarınız silinmedi; lisans açılınca her şey kaldığı yerden devam eder.</div></div>
+    <div class="kart" style="max-width:340px;width:100%;text-align:left"><small class="kucuk">Cihaz kodu · satıcıya gönderin</small><div style="font:800 22px ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px;margin-top:4px">${esc(Veri.ayar("cihaz") || "")}</div></div>
+    <button class="btn ana" data-a="saticiya" style="max-width:340px">💬 Satıcıya WhatsApp'tan yaz</button>
+    <button class="btn koyu" data-a="lisansYenile" style="max-width:340px">↻ Lisansı şimdi denetle</button>
+    <button class="btn ince" data-a="kopyala" style="max-width:340px">Cihaz kodunu kopyala</button>
+    <button class="btn ince" data-a="yedek" style="max-width:340px">💾 Kayıtlarımın yedeğini al</button></main>`;
+}
+
 // ---------------------------------------------------------------- ekran olayları
 const simdiTs = () => yerel(new Date()).slice(0, 19);
 const BAGLA = {
@@ -1077,7 +1204,7 @@ const BAGLA = {
       const ad = u.querySelector("#kAd").value.trim(), tel = u.querySelector("#kTel").value.trim(), p1 = u.querySelector("#kPin").value, p2 = u.querySelector("#kPin2").value, h = u.querySelector("#kHata");
       if (ad.length < 2) return h.textContent = "İşletme adını yazın";
       if (tel.replace(/\D/g, "").length < 10) return h.textContent = "İşletme telefonunu yazın (en az 10 rakam)";
-      if (!/^\d{4}$/.test(p1)) return h.textContent = "Şifre 4 rakam olmalı";
+      if (!/^\d{4,8}$/.test(p1)) return h.textContent = "Şifre 4–8 rakam olmalı";
       if (p1 !== p2) return h.textContent = "Şifreler aynı değil";
       await Veri.ayarYaz("isletmeAd", ad); await Veri.ayarYaz("isletmeTel", tel); await pinKaydet(p1);
       if (!A().malzeme.length) {
@@ -1152,11 +1279,12 @@ const BAGLA = {
       const b = e.target.closest("button"); if (!b) return;
       if (b.dataset.isod) { if (!izinVar("ödeme kaydı")) return; Object.assign(i, {odendi: true, odeme: b.dataset.isod, odemeTs: simdiTs()}, personelVar() ? {odemePer: kimSu().id, odemePerAd: kimSu().ad} : {}); await Veri.kaydet("islem", i); toast("Ödeme alındı · " + tl(i.toplam)); ciz(); }
       else if (b.dataset.isyik) { if (!izinVar("değişiklik")) return; i.yikayan = b.dataset.isyik; await Veri.kaydet("islem", i); ciz(); }
-      else if (b.dataset.isfoto) fotoSec(async blob => { await fotoKaydet(i.id, b.dataset.isfoto, blob); fotoAlanDoldur(u, i); toast("Fotoğraf eklendi"); });
+      else if (b.dataset.isfoto) izinVar("fotoğraf") && fotoSec(async blob => { await fotoKaydet(i.id, b.dataset.isfoto, blob); fotoAlanDoldur(u, i); toast("Fotoğraf eklendi"); });
       else if (b.hasAttribute("data-mikkaydet")) { if (!izinVar("değişiklik")) return; const m = {}; u.querySelectorAll("[data-mk]").forEach(x => { const p = x.dataset.mk; m[p] = m[p] || ["", ""]; m[p][+x.dataset.mi] = x.value; }); i.mikron = mikronTemiz(m); await Veri.kaydet("islem", i); toast("Ölçümler kaydedildi"); ciz(); }
       else if (b.dataset.garanti) garantiBelgesi(b.dataset.garanti);
       else if (b.dataset.fis) fisGoster(b.dataset.fis);
-      else if (b.dataset.issil) { if (!izinVar("silme")) return; onay("Bu kayıt silinsin mi? Kullanılan ürünler stoğa geri eklenir.", async () => { await stokDegistir(i.kalemler, +1, i.id); for (const f of (await Veri.fotolar()).filter(f => f.isId === i.id)) await Veri.fotoSil(f.id); await Veri.sil("islem", i.id); toast("Silindi"); git("ana"); }, true); }
+      else if (b.dataset.issil) { if (!izinVar("silme")) return; onay(`Bu kayıt silinsin mi? Kullanılan ürünler stoğa geri eklenir.${i.kurId && i.kurSira === 1 ? " Bu işte satılan paket de kapanır." : ""}`, async () => { await stokDegistir(i.kalemler, +1, i.id);
+          if (i.kurId && i.kurSira === 1) { const h = hastaBul(i.hastaId), k = h && (h.kurler || []).find(x => x.id === i.kurId); if (k && k.pesin) { const diger = kurSeans(h.id, k.id).filter(x => x.id !== i.id); if (diger.length) Object.assign(k, {kapandi: simdiTs(), not: "satış kaydı silindi"}); else h.kurler = h.kurler.filter(x => x.id !== k.id); await Veri.kaydet("hasta", h); } } for (const f of (await Veri.fotolar()).filter(f => f.isId === i.id)) await Veri.fotoSil(f.id); await Veri.sil("islem", i.id); toast("Silindi"); git("ana"); }, true); }
     });
   },
   hastalar(u) {
@@ -1273,24 +1401,24 @@ const EYLEM = {
   kilitle() { OTURUM.acik = false; OTURUM.pin = ""; OTURUM.kim = null; kapat(); ciz(); },
   personel() {
     const L = personeller();
-    perde(`<h3>Personel</h3><p class="kucuk">Ortak telefon ya da tablette herkes kendi 4 haneli şifresiyle girer. Her işlemde kimin girdiği yazar. Personel; araç alır, durumunu değiştirir, teslim eder, ödeme alır, ürün satar ve stok girişi yapar. Maliyet, kâr, alış fiyatı, Excel, fiyat değişikliği, silme ve ayarlar yalnız yöneticide (sizin şifreniz).</p>
+    perde(`<h3>Personel</h3><p class="kucuk">Ortak telefon ya da tablette herkes kendi şifresiyle (4–8 rakam) girer. Her işlemde kimin girdiği yazar. Personel; araç alır, durumunu değiştirir, teslim eder, ödeme alır, ürün satar ve stok girişi yapar. Maliyet, kâr, alış fiyatı, Excel, fiyat değişikliği, silme ve ayarlar yalnız yöneticide (sizin şifreniz).</p>
       <div class="kart liste">${L.map(p => `<button class="s" data-pd="${p.id}" style="width:100%;text-align:left"><span class="av ${renk(p.ad)}">${esc(bas(p.ad))}</span><div class="m"><b>${esc(p.ad)}</b><small>${A().islem.filter(i => i.per === p.id).length} işlem</small></div><span class="ok">›</span></button>`).join("") || `<div class="bos-durum">Henüz personel yok</div>`}</div>
       <button class="btn koyu" id="pE">＋ Personel ekle</button><button class="btn ince" data-kapat>Kapat</button>`, s => {
       s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#pE").onclick = () => personelDuzen("");
       s.querySelectorAll("[data-pd]").forEach(b => b.onclick = () => personelDuzen(b.dataset.pd)); });
   },
   pin() {
-    if (!yon()) return perde(`<h3>Şifremi değiştir</h3><label>Mevcut şifre<input class="girdi" id="p0" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><div class="ikili-g"><label>Yeni şifre<input class="girdi" id="p1" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><label>Yeni (tekrar)<input class="girdi" id="p2" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label></div><button class="btn koyu" id="pK">Kaydet</button>`, s => {
+    if (!yon()) return perde(`<h3>Şifremi değiştir</h3><label>Mevcut şifre<input class="girdi" id="p0" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><div class="ikili-g"><label>Yeni şifre<input class="girdi" id="p1" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><label>Yeni (tekrar)<input class="girdi" id="p2" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label></div><button class="btn koyu" id="pK">Kaydet</button>`, s => {
       s.querySelector("#pK").onclick = async () => { const p0 = s.querySelector("#p0").value, p1 = s.querySelector("#p1").value, p2 = s.querySelector("#p2").value, p = personeller().find(x => x.id === OTURUM.kim.id);
-        if (!p || await pinOzet(p0, new Uint8Array(p.pin.t)) !== p.pin.h) return toast("Mevcut şifre yanlış"); if (!/^\d{4}$/.test(p1)) return toast("Yeni şifre 4 rakam olmalı"); if (p1 !== p2) return toast("Yeni şifreler aynı değil");
+        if (!p || await pinOzet(p0, new Uint8Array(p.pin.t)) !== p.pin.h) return toast("Mevcut şifre yanlış"); if (!/^\d{4,8}$/.test(p1)) return toast("Yeni şifre 4–8 rakam olmalı"); if (p1 !== p2) return toast("Yeni şifreler aynı değil");
         if (await pinKullanimda(p1, p.id)) return toast("Bu şifre kullanılamaz · başka bir şifre seçin");
-        const tuz = crypto.getRandomValues(new Uint8Array(16)); p.pin = {t: [...tuz], h: await pinOzet(p1, tuz)}; if (OTURUM.pin) p.sar = await sar(OTURUM.pin, p1); else delete p.sar;
+        const tuz = crypto.getRandomValues(new Uint8Array(16)); p.pin = {t: [...tuz], h: await pinOzet(p1, tuz), u: p1.length}; if (OTURUM.pin) p.sar = await sar(OTURUM.pin, p1); else delete p.sar;
         await Veri.ayarYaz("personel", personeller().map(x => x.id === p.id ? p : x)); kapat(); toast("Şifreniz değişti"); }; });
-    perde(`<h3>Giriş şifresini değiştir</h3><label>Mevcut şifre<input class="girdi" id="p0" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><div class="ikili-g"><label>Yeni şifre<input class="girdi" id="p1" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><label>Yeni (tekrar)<input class="girdi" id="p2" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label></div>
+    perde(`<h3>Giriş şifresini değiştir</h3><label>Mevcut şifre<input class="girdi" id="p0" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><div class="ikili-g"><label>Yeni şifre<input class="girdi" id="p1" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><label>Yeni (tekrar)<input class="girdi" id="p2" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label></div>
       <label>Arka planda kaç dakika kalınca kilitlensin<select class="girdi" id="pD">${[1, 2, 5, 15].map(n => `<option ${+(Veri.ayar("kilitDk") || 2) === n ? "selected" : ""}>${n}</option>`).join("")}</select></label><p class="kucuk">Not: eski yedekler, alındıkları zamanki şifreyle açılır.</p><button class="btn koyu" id="pK">Kaydet</button>`, s => {
       s.querySelector("#pK").onclick = async () => { const p0 = s.querySelector("#p0").value, p1 = s.querySelector("#p1").value, p2 = s.querySelector("#p2").value;
         await Veri.ayarYaz("kilitDk", +s.querySelector("#pD").value);
-        if (p0 || p1) { if (!(await pinDogru(p0))) return toast("Mevcut şifre yanlış"); if (!/^\d{4}$/.test(p1)) return toast("Yeni şifre 4 rakam olmalı"); if (p1 !== p2) return toast("Yeni şifreler aynı değil");
+        if (p0 || p1) { if (!(await pinDogru(p0))) return toast("Mevcut şifre yanlış"); if (!/^\d{4,8}$/.test(p1)) return toast("Yeni şifre 4–8 rakam olmalı"); if (p1 !== p2) return toast("Yeni şifreler aynı değil");
           if (await pinKullanimda(p1, "y")) return toast("Bu şifreyi bir personel kullanıyor · başka bir şifre seçin");
           if (personelVar()) await Veri.ayarYaz("ypZincir", [...(Veri.ayar("ypZincir") || []), await sar(p1, p0)].slice(-30));          // personelin sakladığı eski yönetici şifresi yenisine ulaşır
           await pinKaydet(p1); OTURUM.pin = p1; }
@@ -1310,9 +1438,9 @@ const EYLEM = {
   geriyukle() {
     const inp = document.createElement("input"); inp.type = "file";          // 1.1.0: tür sınırı yok (iPhone bilinmeyen uzantıyı seçtirmiyordu)
     inp.onchange = async () => { const f = inp.files[0]; if (!f) return; const metin = await f.text();
-      perde(`<h3>Yedekten geri yükle</h3><p class="kucuk">${esc(f.name)} · bu telefondaki bütün kayıtların YERİNE geçer.</p><label>Yedeğin şifresi (yedek alındığı zamanki giriş şifresi)<input class="girdi" id="yS" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><p class="hata" id="yH"></p><button class="btn ana" id="yK">Geri yükle</button><button class="btn ince" data-kapat>Vazgeç</button>`, s => {
+      perde(`<h3>Yedekten geri yükle</h3><p class="kucuk">${esc(f.name)} · bu telefondaki bütün kayıtların YERİNE geçer.</p><label>Yedeğin şifresi (yedek alındığı zamanki giriş şifresi)<input class="girdi" id="yS" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><p class="hata" id="yH"></p><button class="btn ana" id="yK">Geri yükle</button><button class="btn ince" data-kapat>Vazgeç</button>`, s => {
         s.querySelector("[data-kapat]").onclick = kapat; s.querySelector("#yS").focus();
-        s.querySelector("#yK").onclick = async () => { try { const y = await yedekCoz(metin, s.querySelector("#yS").value); await Veri.iceAl(y); stokYenile(); OTURUM.pin = s.querySelector("#yS").value; await pinKaydet(OTURUM.pin); await lisansTazele(false); kapat(); toast(`Geri yüklendi · ${A().hasta.length} hasta, ${A().islem.length} işlem`); git("ana"); } catch (e) { s.querySelector("#yH").textContent = e.message; } }; }); };
+        s.querySelector("#yK").onclick = async () => { try { const y = await yedekCoz(metin, s.querySelector("#yS").value); await Veri.iceAl(y); stokYenile(); OTURUM.pin = s.querySelector("#yS").value; await pinKaydet(OTURUM.pin); await lisansTazele(false); await fotoYetimTemizle(); kapat(); toast(`Geri yüklendi · ${A().hasta.length} araç, ${A().islem.length} iş`); git("ana"); } catch (e) { s.querySelector("#yH").textContent = e.message; } }; }); };
     inp.click();
   }
 };
@@ -1321,26 +1449,29 @@ Object.assign(EYLEM, EYLEM_OTO);
 function personelDuzen(id) {
   const p = id ? personeller().find(x => x.id === id) : {ad: ""};
   perde(`<h3>${id ? esc(p.ad) : "Yeni personel"}</h3><label>Adı<input class="girdi" id="pA" value="${esc(p.ad)}" placeholder="Ad soyad"></label>
-    <div class="ikili-g"><label>${id ? "Yeni şifre (değişmeyecekse boş)" : "Şifresi (4 hane)"}<input class="girdi" id="p1" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label><label>Şifre (tekrar)<input class="girdi" id="p2" type="tel" inputmode="numeric" maxlength="4" style="-webkit-text-security:disc"></label></div>
+    <div class="ikili-g"><label>${id ? "Yeni şifre (değişmeyecekse boş)" : "Şifresi (4–8 rakam)"}<input class="girdi" id="p1" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><label>Şifre (tekrar)<input class="girdi" id="p2" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label></div>
     <p class="kucuk">Şifreyi personele siz söyleyin; sonra kendisi Ayarlar'dan değiştirebilir.</p>
     <button class="btn koyu" id="pK">Kaydet</button>${id ? `<button class="btn ince" id="pS" style="color:var(--tehlike)">Personeli kaldır (işlemleri durur)</button>` : ""}<button class="btn ince" data-kapat>Vazgeç</button>`, s => {
     s.querySelector("[data-kapat]").onclick = () => EYLEM.personel(); s.querySelector("#pA").focus();
     s.querySelector("#pK").onclick = async () => {
       const ad = s.querySelector("#pA").value.trim().replace(/\s+/g, " "), p1 = s.querySelector("#p1").value, p2 = s.querySelector("#p2").value;
       if (ad.length < 2) return toast("Adını yazın"); if (kucuk(ad) === kucuk(YON_AD) || personeller().some(x => x.id !== id && kucuk(x.ad) === kucuk(ad))) return toast("Bu ad kullanılıyor");
-      if (!id || p1) { if (!/^\d{4}$/.test(p1)) return toast("Şifre 4 rakam olmalı"); if (p1 !== p2) return toast("Şifreler aynı değil"); if (await pinKullanimda(p1, id || "-")) return toast("Bu şifre kullanılıyor · başka bir şifre seçin"); }
+      if (!id || p1) { if (!/^\d{4,8}$/.test(p1)) return toast("Şifre 4–8 rakam olmalı"); if (p1 !== p2) return toast("Şifreler aynı değil"); if (await pinKullanimda(p1, id || "-")) return toast("Bu şifre kullanılıyor · başka bir şifre seçin"); }
       const o = Object.assign({}, p, {id: id || Veri.yeniId(), ad});
-      if (p1) { const tuz = crypto.getRandomValues(new Uint8Array(16)); o.pin = {t: [...tuz], h: await pinOzet(p1, tuz)}; o.sar = await sar(OTURUM.pin, p1); }
+      if (p1) { const tuz = crypto.getRandomValues(new Uint8Array(16)); o.pin = {t: [...tuz], h: await pinOzet(p1, tuz), u: p1.length}; o.sar = await sar(OTURUM.pin, p1); }
       await Veri.ayarYaz("personel", id ? personeller().map(x => x.id === id ? o : x) : [...personeller(), o]);
       toast(id ? "Kaydedildi" : `${ad} eklendi · şifresini kendisine söyleyin`); EYLEM.personel(); };
     const sl = s.querySelector("#pS"); if (sl) sl.onclick = () => onay(`${p.ad} kaldırılsın mı? Girdiği işlemler silinmez.`, async () => { await Veri.ayarYaz("personel", personeller().filter(x => x.id !== id)); toast("Kaldırıldı"); EYLEM.personel(); }, true);
   });
 }
-const YON_EYLEM = new Set(["isletme", "odeme", "kategori", "google", "driveGeri", "geriyukle", "excel", "kasaWa", "personel", "siniflar", "paketler", "sadakat", "prim", "hazirMesaj", "garantiSart", "calisanlar"]);
+const YON_EYLEM = new Set(["googleYorum", "isletme", "odeme", "kategori", "google", "driveGeri", "geriyukle", "excel", "kasaWa", "personel", "siniflar", "paketler", "sadakat", "prim", "hazirMesaj", "garantiSart", "calisanlar"]);
 document.addEventListener("click", e => {
-  const t = e.target.closest("[data-git],[data-a],[data-hduz],[data-hyenikart],[data-hf],[data-mg],[data-kd],[data-durum],[data-kurseans],[data-kurbitir],[data-kontkapat],[data-garanti2],[data-borcode]");
+  const t = e.target.closest("[data-git],[data-a],[data-hduz],[data-hyenikart],[data-hf],[data-mg],[data-kd],[data-durum],[data-kurseans],[data-kurbitir],[data-kontkapat],[data-garanti2],[data-borcode],[data-aracfoto],[data-ozl]");
   if (!t || t.closest(".perde") && !t.dataset.a) return;
   if (t.dataset.durum) return durumDegis(t.dataset.durum, t.dataset.d);
+  if (t.dataset.ozl) { const g = Object.assign({}, Veri.ayar("ozledik") || {}); g[t.dataset.ozl] = bugun(); Veri.ayarYaz("ozledik", g).then(() => setTimeout(ciz, 400)); return; }          // bağlantı WhatsApp'ı açar
+  if (t.dataset.aracfoto) return aracFotoSec(t.dataset.aracfoto);
+  if (t.dataset.hfgit) HF.f = t.dataset.hfgit;
   if (t.dataset.git !== undefined) {
     if (t.dataset.git.startsWith("yeni")) { if (!izinVar("araç kaydı")) return; yeniSifirla(t.dataset.git.split("/")[1] || ""); }
     if (t.dataset.git === "satis") { if (!izinVar("satış")) return; Object.assign(SATIS, {adet: {}, hastaId: "", q: "", odeme: ""}); }
@@ -1364,7 +1495,8 @@ document.addEventListener("click", e => {
 // ---------------------------------------------------------------- açılış
 (async () => {
   try {
-    await Veri.yukle(); stokYenile(); await Lisans.hazirla(); OTURUM.durum = await Lisans.durum();
+    await Veri.yukle(); stokYenile(); await aracFotoYukle(); await Lisans.hazirla(); OTURUM.durum = await Lisans.durum();
+    setInterval(() => { if (OTURUM.acik && YOL()[0] === "ana" && !document.querySelector(".perde") && !document.hidden) ciz(); }, 60e3);          // bekleme süreleri
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
     ciz();
   } catch (e) { $("#uyg").innerHTML = `<div class="kilit"><div class="logo">!</div><b>Program açılamadı</b><p class="kucuk">${esc(e.message)}. Tarayıcının gizli (özel) penceresinde veri saklanamaz; normal pencerede açın.</p></div>`; }

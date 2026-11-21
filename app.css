@@ -95,8 +95,6 @@ a{color:var(--ana)}
 .belge .b-t{width:100%;border-collapse:collapse;margin:0 0 10px}.belge .b-t td,.belge .b-t th{border:1px solid #bbb;padding:5px 7px;text-align:left;vertical-align:top}.belge .b-t th{background:#f1f3f6}
 .belge .b-k{font-size:11.5px;color:#444}.belge .b-imza{display:flex;justify-content:space-between;margin-top:28px}.belge .b-imza span{border-top:1px solid #111;padding-top:4px;width:40%;text-align:center}
 .belge.fis{max-width:320px;margin:0 auto}
-#yazdir{display:none}
-@media print{body.yazdiriliyor>*:not(#yazdir){display:none!important}body.yazdiriliyor #yazdir{display:block}body.yazdiriliyor{background:#fff}}
 
 /* araç al: içerik aralıklı dizilir (başlıklar düğmelerin üstüne binmesin) */
 #yeniIc,#yAlt{display:flex;flex-direction:column;gap:12px}
@@ -106,3 +104,9 @@ a{color:var(--ana)}
 .iskart .alt2 .cip{white-space:nowrap}
 /* tablet: geniş ekran (yıkamada tablet) */
 @media (min-width:720px){#uyg{max-width:1000px}.sayfa{max-width:640px}}
+/* 1.1.0 araç resmi, özet */
+.thumb{width:46px;height:34px;border-radius:8px;object-fit:cover;flex-shrink:0;display:block}
+.arac-foto{position:relative;display:block;width:100%;height:190px;border-radius:18px;overflow:hidden;padding:0;background:var(--cizgi)}
+.arac-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.arac-foto span{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.6);color:#fff;border-radius:10px;padding:6px 10px;font-size:12.5px;font-weight:700}
+.ist{display:grid;grid-template-columns:1fr 1fr;gap:8px}.ist .kart{padding:10px 12px}.ist small{color:var(--soluk);font-size:12px;display:block}.ist b{font-size:16px}

@@ -1,5 +1,5 @@
 /* Oto Defteri — Google ile bağla (isteğe bağlı). Kullanıcının KENDİ Drive'ında, yalnız bu programın görebildiği gizli klasöre (appDataFolder)
-   iki dosya yazılır: oto-kimlik.json (cihaz kodu + yedek gizi) ve oto-yedek.kdy (şifreli yedek). Bizim sunucumuz yok; hasta verisi bize hiç gelmez. */
+   oto-kimlik.json (cihaz kodu + yedek gizi), oto-yedek.kdy (şifreli yedek) ve fotoğraflar (oto-foto__…jpg) yazılır. Bizim sunucumuz yok; müşteri verisi bize hiç gelmez. */
 "use strict";
 const Google = (() => {
   const KAPSAM = "https://www.googleapis.com/auth/drive.appdata openid email";
@@ -65,9 +65,25 @@ const Google = (() => {
   async function yedekBilgi() { await jetonAl(false); const f = await bul("oto-yedek.kdy"); return f; }
   async function yedekYaz(metin) { await yaz("oto-yedek.kdy", metin, "application/octet-stream"); await Veri.ayarYaz("sonDrive", new Date().toISOString()); }
   async function yedekOku() { await jetonAl(false); const r = await oku("oto-yedek.kdy"); return r ? r.metin : null; }
+  // 1.1.0: fotoğraflar ayrı dosyalar olarak (ad: oto-foto__<kimlik>__<iş/araç>__<tür>__<zaman>.jpg); yedek dosyasını büyütmez
+  const fotoAd = f => `oto-foto__${f.id}__${f.isId}__${f.tur}__${String(f.ts || "").replace(/[^0-9T]/g, "")}.jpg`;
+  async function fotoYukle(f) {
+    const sinir = "kd" + Math.random().toString(36).slice(2), meta = {name: fotoAd(f), parents: ["appDataFolder"]};
+    const govde = new Blob([`--${sinir}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${sinir}\r\nContent-Type: image/jpeg\r\n\r\n`, f.blob, `\r\n--${sinir}--`]);
+    return (await istek(`${YUKLE}?uploadType=multipart`, {method: "POST", headers: {"Content-Type": "multipart/related; boundary=" + sinir}, body: govde})).json();
+  }
+  async function fotoListe() {
+    const out = []; let sayfa = "";
+    do { const q = encodeURIComponent("name contains 'oto-foto__' and trashed=false");
+      const j = await (await istek(`${DRIVE}?spaces=appDataFolder&q=${q}&pageSize=1000&fields=nextPageToken,files(id,name)${sayfa ? "&pageToken=" + sayfa : ""}`)).json();
+      out.push(...(j.files || [])); sayfa = j.nextPageToken || ""; } while (sayfa);
+    return out.map(x => { const [, id, isId, tur, ts] = x.name.replace(/\.jpg$/, "").split("__"); return {driveId: x.id, id, isId, tur, ts: ts ? ts.replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2}).*$/, "$1-$2-$3T$4:$5:$6") : ""}; }).filter(x => x.id && x.isId);
+  }
+  async function fotoIndir(driveId) { return (await istek(`${DRIVE}/${driveId}?alt=media`)).blob(); }
+  async function fotoSil(driveId) { try { await istek(`${DRIVE}/${driveId}`, {method: "DELETE"}); } catch (e) { /* önemsiz */ } }
   async function kopar() {
     try { if (jeton && window.google && google.accounts) google.accounts.oauth2.revoke(jeton, () => {}); } catch (e) { /* önemsiz */ }
     jeton = null; await Veri.ayarYaz("google", null);
   }
-  return {baglan, yedekBilgi, yedekYaz, yedekOku, kopar, jetonVar: () => !!(jeton && Date.now() < jetonSon - 60e3), jetonAl};
+  return {baglan, yedekBilgi, yedekYaz, yedekOku, kopar, fotoYukle, fotoListe, fotoIndir, fotoSil, jetonVar: () => !!(jeton && Date.now() < jetonSon - 60e3), jetonAl};
 })();
