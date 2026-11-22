@@ -1,7 +1,7 @@
 /* Esnaf Oto Detay Mobil — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
    Kayıt adları Klinik Defteri altyapısından kaldı: hasta = araç (plaka), malzeme = katalog (hizmet / ürün), islem = iş (yıkama, detay, ürün satışı). */
 "use strict";
-const SURUM = "1.3.1";
+const SURUM = "1.3.2";
 const SATICI_TEL = "905309469947";
 const GOOGLE_CLIENT_ID = "1044147751394-qo809o3sndht657dcbr8cprj3m2s96dt.apps.googleusercontent.com";      // Google ile bağla (isteğe bağlı) · Drive'da yalnız bu programın klasörü
 const VARSAYILAN_GRUP = ["Yıkama", "İç temizlik", "Pasta cila", "Seramik", "PPF", "Cam filmi", "Ürün"];
@@ -303,8 +303,10 @@ const ust = (baslik, alt, sol, sag) => `<header class="ust">${sol ? `<button cla
 function kurulumEkrani() {
   return `<main class="ic" style="padding-top:calc(20px + env(safe-area-inset-top,0px));gap:12px" data-baglan="kurulum">
     <img class="logo" src="simge-192.png" alt=""><div style="text-align:center"><b style="font-size:22px">Esnaf Oto Detay Mobil</b><div class="kucuk">Hoş geldiniz · işletmenizi tanıtın</div></div>
-    <label>İşletme adı<input class="girdi" id="kAd" autocomplete="organization" placeholder="Tabelada yazan ad"></label>
-    <label>İşletme telefonu * <span style="font-weight:400">(fişte ve hatırlatmada görünür)</span><input class="girdi" id="kTel" type="tel" inputmode="tel" placeholder="Telefon numarası"></label>
+    <label>İşletme adı * <span style="font-weight:400">(tabelada yazan ad)</span><input class="girdi" id="kAd" autocomplete="organization" placeholder="Tabelada yazan ad" required></label>
+    <label>İşletme telefonu * <span style="font-weight:400">(fişte ve hatırlatmada görünür)</span><input class="girdi" id="kTel" type="tel" inputmode="tel" autocomplete="tel" placeholder="Telefon numarası" required></label>
+    <label>İşletme adresi <span style="font-weight:400">(isteğe bağlı · fişte ve belgede görünür)</span><input class="girdi" id="kAdres" autocomplete="street-address" placeholder="Açık adres"></label>
+    <div class="kart kucuk" style="padding:10px 12px">ℹ️ <b>*</b> işaretli alanlar zorunludur. Bilgi mesajları, lisans ve raporlarla ilgili bildirimler yazdığınız <b>işletme telefonuna</b> gelir; lütfen doğru yazın.</div>
     <div class="ikili-g"><label>Giriş şifresi (4–8 rakam)<input class="girdi" id="kPin" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label>
       <label>Şifre (tekrar)<input class="girdi" id="kPin2" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label></div>
     <div class="kart" style="display:grid;gap:8px"><div style="display:flex;gap:10px;align-items:center"><span class="av" style="background:#fff;border:1px solid var(--cizgi);color:#4285f4">G</span>
@@ -1366,11 +1368,11 @@ const BAGLA = {
   kurulum(u) {
     u.querySelector("#kGo").onclick = async () => {
       const ad = u.querySelector("#kAd").value.trim(), tel = u.querySelector("#kTel").value.trim(), p1 = u.querySelector("#kPin").value, p2 = u.querySelector("#kPin2").value, h = u.querySelector("#kHata");
-      if (ad.length < 2) return h.textContent = "İşletme adını yazın";
-      if (tel.replace(/\D/g, "").length < 10) return h.textContent = "İşletme telefonunu yazın (en az 10 rakam)";
+      if (ad.length < 2) { u.querySelector("#kAd").focus(); return h.textContent = "İşletme adını yazın (tabelada yazan ad, zorunlu)"; }
+      if (tel.replace(/\D/g, "").length < 10) { u.querySelector("#kTel").focus(); return h.textContent = "İşletme telefonunu yazın (zorunlu, en az 10 rakam)"; }
       if (!/^\d{4,8}$/.test(p1)) return h.textContent = "Şifre 4–8 rakam olmalı";
       if (p1 !== p2) return h.textContent = "Şifreler aynı değil";
-      await Veri.ayarYaz("isletmeAd", ad); await Veri.ayarYaz("isletmeTel", tel); await pinKaydet(p1);
+      await Veri.ayarYaz("isletmeAd", ad); await Veri.ayarYaz("isletmeTel", tel); const adr = u.querySelector("#kAdres").value.trim(); if (adr) await Veri.ayarYaz("isletmeAdres", adr.slice(0, 200)); await pinKaydet(p1);
       if (!A().malzeme.length) {
         for (const [ad2, grup, f, mal, gar, bak, sik] of ORNEK_HIZMET) await Veri.kaydet("malzeme", {ad: ad2, tur: "hizmet", grup, f, satis: f[1], alis: mal, garantiAy: gar, bakimAy: bak, sik: !!sik, stokTut: false, stok: 0, sinir: 0});
         for (const [ad2, satis, alis, stok, sinir] of ORNEK_URUN) { const m = await Veri.kaydet("malzeme", {ad: ad2, tur: "urun", grup: "Ürün", satis, alis, stok, sinir, stokTut: true, sik: false, garantiAy: 0, bakimAy: 0});
