@@ -257,3 +257,9 @@ a{color:var(--ana)}
 .ak-dug.tek{grid-template-columns:1fr}
 
 img.logo{display:block;object-fit:cover;padding:0;box-shadow:0 6px 18px rgba(16,42,44,.18)}          /* 1.3.1: emoji yerine programın kendi simgesi */
+
+/* 1.3.3 alt çubuk: beyaz zemin, seçili sekme sarı (lacivert üstü altın yerine) */
+.alt{background:var(--kart);color:var(--soluk);border-radius:20px 20px 0 0;box-shadow:0 -4px 16px rgba(16,42,44,.08)}
+.alt button.on{color:#b37d00}.alt button.on i{background:var(--vurgu-acik);color:#b37d00}
+.alt button.on::after{content:"";display:block;width:34px;height:3px;border-radius:2px;background:var(--vurgu);margin-top:1px}
+.bant .b-ad b{letter-spacing:.03em}

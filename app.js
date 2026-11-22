@@ -1,7 +1,7 @@
 /* Esnaf Oto Detay Mobil — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
    Kayıt adları Klinik Defteri altyapısından kaldı: hasta = araç (plaka), malzeme = katalog (hizmet / ürün), islem = iş (yıkama, detay, ürün satışı). */
 "use strict";
-const SURUM = "1.3.2";
+const SURUM = "1.3.3";
 const SATICI_TEL = "905309469947";
 const GOOGLE_CLIENT_ID = "1044147751394-qo809o3sndht657dcbr8cprj3m2s96dt.apps.googleusercontent.com";      // Google ile bağla (isteğe bağlı) · Drive'da yalnız bu programın klasörü
 const VARSAYILAN_GRUP = ["Yıkama", "İç temizlik", "Pasta cila", "Seramik", "PPF", "Cam filmi", "Ürün"];
@@ -213,7 +213,7 @@ const kisaYazi = i => { const k = i.kalemler || []; return k.slice(0, 3).map(x =
 const borc = id => hastaIslem(id).filter(i => !i.odendi && i.durum !== "randevu").reduce((s, i) => s + i.toplam, 0);
 const ayEkle = (iso, n) => { const d = new Date(iso.slice(0, 10) + "T12:00:00"); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10); };
 // plaka: "34abc123" → "34 ABC 123"; aramada boşluksuz karşılaştırılır
-const plakaNorm = p => String(p || "").toLocaleUpperCase("tr").replace(/[^0-9A-ZÇĞİÖŞÜ]/g, "");
+const plakaNorm = p => String(p || "").toLocaleUpperCase("tr").replace(/İ/g, "I").replace(/[^0-9A-ZÇĞİÖŞÜ]/g, "");
 const plakaYaz = p => { const n = plakaNorm(p), m = n.match(/^(\d{2})([A-ZÇĞİÖŞÜ]{1,3})(\d{2,4})$/); return m ? `${m[1]} ${m[2]} ${m[3]}` : String(p || "").toLocaleUpperCase("tr").trim().replace(/\s+/g, " "); };
 const plakaBuyuk = p => { const y = plakaYaz(p); return /\d/.test(y) && /[A-ZÇĞİÖŞÜ]/i.test(y) && y.length >= 5 ? `<span class="plaka buyuk"><i>TR</i>${esc(y)}</span>` : ""; };
 const plakaHtml = (p, k) => `<span class="plaka${k ? " k" : ""}"><i>TR</i>${esc(plakaYaz(p) || "—")}</span>`;
@@ -354,7 +354,7 @@ function anaEkran() {
   const saatG = d.getHours() < 12 ? "Günaydın" : d.getHours() < 18 ? "İyi günler" : "İyi akşamlar";
   const kim = personelVar() ? kimSu() : null;
   const isAd = Veri.ayar("isletmeAd") || "Oto Detay";
-  return `<header class="bant"><div class="b-logo">${SVG(SIMGE.hastalar)}<b>${esc(isAd)}</b><small>Yıkama · Detay · Kaplama</small></div><div class="b-ad"><b>Yıkama Panosu</b><small>${saatG}${kim && !kim.yon ? ", " + esc(kim.ad.split(" ")[0]) : ""}</small></div>${kim ? `<button class="yuv" data-a="kilitle" aria-label="Kişi değiştir" title="Kişi değiştir">${esc(bas(kim.ad))}</button>` : ""}</header>
+  return `<header class="bant"><div class="b-logo">${SVG(SIMGE.hastalar)}<b>${esc(isAd)}</b><small>Yıkama · Detay · Kaplama</small></div><div class="b-ad"><b>ARAÇ TAKİP</b><small>${saatG}${kim && !kim.yon ? ", " + esc(kim.ad.split(" ")[0]) : ""}</small></div>${kim ? `<button class="yuv" data-a="kilitle" aria-label="Kişi değiştir" title="Kişi değiştir">${esc(bas(kim.ad))}</button>` : ""}</header>
   ${seritler()}<main class="ic">
     <div class="ana-ust"><button class="kart kasa-k" data-git="kasa"><div class="kk-b">${SVG(SIMGE.kasa)}<b>Bugün kasa</b><span>›</span></div><b class="kk-t">${tl(kasa)}</b>
       <div class="kk-3"><span><b class="iyi">${tl(kasa)}</b><small>Tahsilat</small></span><span><b class="uy">${tl(alin)}</b><small>Alınacak</small></span><span><b>${acik.length}</b><small>Araç</small></span></div></button>
@@ -444,7 +444,7 @@ function yeniIc() {
     const es = YENI.plaka.trim().length >= 2 ? A().hasta.filter(x => (q.length >= 2 && plakaNorm(x.plaka).includes(q)) || (qd.length >= 4 && String(x.tel || "").replace(/\D/g, "").includes(qd)) || (qk.length >= 2 && kucuk(x.ad).includes(qk))).slice(0, 6) : [];
     giris = `<div class="kart kutu">${kutuBas(S2('<rect x="2.5" y="6.5" width="19" height="11" rx="2"/><path d="M6 10v4M9.5 10v4M13 10h3v4h-3"/>'), "Plaka")}<div class="plk-g"><input class="girdi plaka-girdi" id="yPlaka" value="${esc(YENI.plaka)}" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Plaka · ya da müşteri adı / telefon" aria-label="Plaka"><span id="yPlakaGor" class="plaka-b">${plakaBuyuk(YENI.plaka)}</span></div></div>`;
     if (YENI.yeniArac) html += `<div class="serit ana" style="margin:0">＋ Yeni araç: <b>${esc(plakaYaz(YENI.plaka))}</b><button data-hdegis>Değiştir</button></div>
-      <div class="ikili-g"><label>Müşteri adı (isteğe bağlı)<input class="girdi" id="yAd" value="${esc(YENI.ad)}" autocomplete="off"></label><label>Telefon (isteğe bağlı)<input class="girdi" id="yTel" type="tel" inputmode="tel" value="${esc(YENI.tel)}" placeholder="hazır mesajı için"></label></div>`;
+      <div class="ikili-g"><label>Müşteri adı (isteğe bağlı)<input class="girdi" data-isim autocapitalize="words" id="yAd" value="${esc(YENI.ad)}" autocomplete="off"></label><label>Telefon (isteğe bağlı)<input class="girdi" id="yTel" type="tel" inputmode="tel" value="${esc(YENI.tel)}" placeholder="hazır mesajı için"></label></div>`;
     else if (YENI.plaka.trim().length >= 2) html += `<div class="oneri">${es.map(x => { const s = hastaIslem(x.id)[0]; return `<button class="s" data-hsec="${x.id}" style="width:100%;text-align:left">${aracResim(x.id)}${plakaHtml(x.plaka, 1)}<div style="flex:1;min-width:0"><b>${esc(x.ad || "—")}</b><small>${esc(siniflar()[(+x.sinif || 2) - 1])}${x.tel ? " · " + esc(x.tel) : ""}${s ? " · son " + tr(s.ts) : ""}</small></div></button>`; }).join("")}
       ${q.length >= 4 && !A().hasta.some(x => plakaNorm(x.plaka) === q) ? `<button class="s" data-hyeni style="width:100%;text-align:left"><span class="av" style="background:var(--vurgu-acik);color:var(--yazi)">＋</span><div style="flex:1"><b>${esc(plakaYaz(YENI.plaka))} · yeni araç olarak ekle</b></div></button>` : ""}</div>`;
     if (!YENI.yeniArac) return giris + `<div id="yAlt">${html}<div class="bos-durum">Plakayı yazın. Araç daha önce geldiyse listeden seçin; paketi ve geçmişi görünür.</div></div>`;
@@ -741,7 +741,7 @@ function hastaDuzenle(id) {
   let sinif = +h.sinif || 2;
   perde(`<h3>${id ? "Araç bilgileri" : "Yeni araç"}</h3>
     <label>Plaka<input class="girdi plaka-girdi" id="hPlaka" value="${esc(h.plaka)}" autocapitalize="characters"></label>
-    <div class="ikili-g"><label>Müşteri adı<input class="girdi" id="hAd" value="${esc(h.ad)}"></label><label>Telefon<input class="girdi" id="hTel" type="tel" inputmode="tel" value="${esc(h.tel)}"></label></div>
+    <div class="ikili-g"><label>Müşteri adı<input class="girdi" data-isim autocapitalize="words" id="hAd" value="${esc(h.ad)}"></label><label>Telefon<input class="girdi" id="hTel" type="tel" inputmode="tel" value="${esc(h.tel)}"></label></div>
     <div class="ikili-g"><label>Marka / model<input class="girdi" id="hMarka" value="${esc(h.marka)}" placeholder="ör. Fiat Egea"></label><label>Renk<input class="girdi" id="hRenk" value="${esc(h.renk)}"></label></div>
     <div class="kucuk" style="font-weight:700">Araç sınıfı</div><div class="cips" id="hSin">${siniflar().map((s, k) => `<button class="cip ${sinif === k + 1 ? "on" : ""}" data-s="${k + 1}">${esc(s)}</button>`).join("")}</div>
     <label>Kalıcı not<textarea class="girdi" id="hNot" placeholder="ör. jantlara asitli ürün kullanılmayacak">${esc(h.not)}</textarea></label>
@@ -1677,6 +1677,15 @@ function surumIzle() {
   document.addEventListener("visibilitychange", bak); window.addEventListener("focus", bak); window.addEventListener("pageshow", bak); window.addEventListener("hashchange", () => setTimeout(bak, 300));
   setInterval(bak, 30 * 60e3); setTimeout(bak, 3000);
 }
+// 1.3.3: plaka yazarken kendiliğinden BÜYÜK harf; müşteri adında her kelimenin baş harfi büyük (yazılan değer de değişir, yalnız görünüm değil)
+document.addEventListener("input", e => {
+  const t = e.target; if (!t || t.tagName !== "INPUT") return;
+  const ilk = t.selectionStart, son = t.selectionEnd;
+  let v = t.value;
+  if (t.classList.contains("plaka-girdi")) { if (/^[\d\s]*\d{2}\s*[a-zçğıöşü]/i.test(v) || /^\d/.test(v)) v = v.toLocaleUpperCase("tr").replace(/İ/g, "I"); }          // plakada Türkçe harf yok: i → I          // arama kutusunda isim/telefon da yazılabilir: rakamla başlıyorsa plakadır
+  else if (t.hasAttribute("data-isim")) v = v.replace(/(^|\s)(\S)/g, (m, a, b) => a + b.toLocaleUpperCase("tr"));
+  if (v !== t.value) { t.value = v; try { t.setSelectionRange(ilk, son); } catch (x) { /* önemsiz */ } }
+}, true);
 // ---------------------------------------------------------------- açılış
 (async () => {
   try {
