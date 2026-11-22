@@ -1,6 +1,6 @@
 {
-  "name": "Oto Defteri",
-  "short_name": "Oto Defteri",
+  "name": "Esnaf Oto Detay Mobil",
+  "short_name": "Oto Detay",
   "description": "Oto yıkama, detay ve kaplama defteri: yıkama sırası, araç, kasa, garanti. Veriler telefonda.",
   "lang": "tr",
   "start_url": "./#ana",

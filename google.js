@@ -1,4 +1,4 @@
-/* Oto Defteri — Google ile bağla (isteğe bağlı). Kullanıcının KENDİ Drive'ında, yalnız bu programın görebildiği gizli klasöre (appDataFolder)
+/* Esnaf Oto Detay Mobil — Google ile bağla (isteğe bağlı). Kullanıcının KENDİ Drive'ında, yalnız bu programın görebildiği gizli klasöre (appDataFolder)
    oto-kimlik.json (cihaz kodu + yedek gizi), oto-yedek.kdy (şifreli yedek) ve fotoğraflar (oto-foto__…jpg) yazılır. Bizim sunucumuz yok; müşteri verisi bize hiç gelmez. */
 "use strict";
 const Google = (() => {

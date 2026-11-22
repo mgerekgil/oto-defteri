@@ -1,7 +1,7 @@
-/* Oto Defteri — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
+/* Esnaf Oto Detay Mobil — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
    Kayıt adları Klinik Defteri altyapısından kaldı: hasta = araç (plaka), malzeme = katalog (hizmet / ürün), islem = iş (yıkama, detay, ürün satışı). */
 "use strict";
-const SURUM = "1.1.1";
+const SURUM = "1.2.0";
 const SATICI_TEL = "905309469947";
 const GOOGLE_CLIENT_ID = "1044147751394-qo809o3sndht657dcbr8cprj3m2s96dt.apps.googleusercontent.com";      // Google ile bağla (isteğe bağlı) · Drive'da yalnız bu programın klasörü
 const VARSAYILAN_GRUP = ["Yıkama", "İç temizlik", "Pasta cila", "Seramik", "PPF", "Cam filmi", "Ürün"];
@@ -117,8 +117,8 @@ async function yedekOlustur(giz) {
   return JSON.stringify({tur: "OtoDefteriYedekSifreli", v: 1, g: giz ? 1 : 0, tarih: new Date().toISOString(), isletme: Veri.ayar("isletmeAd") || "", hasta: A().hasta.length, islem: A().islem.length, s: b64(tuz), iv: b64(iv), c: b64(c)});
 }
 async function yedekCoz(metin, pin, giz) {
-  let y; try { y = JSON.parse(metin); } catch (e) { throw new Error("Bu dosya Oto Defteri yedeği değil"); }
-  if (y.tur !== "OtoDefteriYedekSifreli") throw new Error("Bu dosya Oto Defteri yedeği değil");
+  let y; try { y = JSON.parse(metin); } catch (e) { throw new Error("Bu dosya Esnaf Oto Detay Mobil yedeği değil"); }
+  if (y.tur !== "OtoDefteriYedekSifreli") throw new Error("Bu dosya Esnaf Oto Detay Mobil yedeği değil");
   try { return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name: "AES-GCM", iv: unb64(y.iv)}, await yedekAnahtar(pin, unb64(y.s), y.g ? giz : ""), unb64(y.c)))); }
   catch (e) { throw new Error("Şifre yanlış: yedek alındığı zamanki giriş şifresini yazın"); }
 }
@@ -293,7 +293,7 @@ const ust = (baslik, alt, sol, sag) => `<header class="ust">${sol ? `<button cla
 // 0 · kurulum
 function kurulumEkrani() {
   return `<main class="ic" style="padding-top:calc(20px + env(safe-area-inset-top,0px));gap:12px" data-baglan="kurulum">
-    <div class="logo">🚗</div><div style="text-align:center"><b style="font-size:22px">Oto Defteri</b><div class="kucuk">Hoş geldiniz · işletmenizi tanıtın</div></div>
+    <div class="logo">🚗</div><div style="text-align:center"><b style="font-size:22px">Esnaf Oto Detay Mobil</b><div class="kucuk">Hoş geldiniz · işletmenizi tanıtın</div></div>
     <label>İşletme adı<input class="girdi" id="kAd" autocomplete="organization" placeholder="Tabelada yazan ad"></label>
     <label>İşletme telefonu * <span style="font-weight:400">(fişte ve hatırlatmada görünür)</span><input class="girdi" id="kTel" type="tel" inputmode="tel" placeholder="Telefon numarası"></label>
     <div class="ikili-g"><label>Giriş şifresi (4–8 rakam)<input class="girdi" id="kPin" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label>
@@ -312,7 +312,7 @@ function kilitEkrani(u) {
   let pin = "";
   const UZ = Math.max(...pinUzunluklari()), KISA = Math.min(...pinUzunluklari());          // en uzun şifreye ulaşınca kendiliğinden dener; kısa şifreler ✓ ile
   const ciz2 = (h = "") => {
-    u.innerHTML = `<main class="kilit"><div class="logo">🚗</div><div><b style="font-size:20px">${esc(Veri.ayar("isletmeAd") || "Oto Defteri")}</b><div class="kucuk">${personelVar() ? "Kendi şifrenizi yazın" : "Giriş şifrenizi yazın"}</div></div>
+    u.innerHTML = `<main class="kilit"><div class="logo">🚗</div><div><b style="font-size:20px">${esc(Veri.ayar("isletmeAd") || "Esnaf Oto Detay Mobil")}</b><div class="kucuk">${personelVar() ? "Kendi şifrenizi yazın" : "Giriş şifrenizi yazın"}</div></div>
       <div class="pin">${[...Array(UZ).keys()].map(i => `<span class="${i < pin.length ? "d" : ""}"></span>`).join("")}</div><p class="hata">${esc(h)}</p>
       <div class="pin-tus">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-n="${n}">${n}</button>`).join("")}<button class="bos" data-a="unuttum" style="font-size:12px;color:var(--soluk)">Unuttum</button><button data-n="0">0</button><button class="bos" data-sil>⌫</button></div>${KISA < UZ ? `<button class="btn koyu" data-gir style="max-width:280px;margin-top:6px">✓ Giriş</button>` : ""}</main>`;
     const nokta = () => u.querySelectorAll(".pin span").forEach((s, i) => s.classList.toggle("d", i < pin.length));
@@ -611,7 +611,7 @@ function garantiBelgesi(id) {
 }
 function fisHtml(i) {
   const h = hastaBul(i.hastaId);
-  return `<div class="belge fis">${belgeBas()}<h2>BİLGİ FİŞİ</h2><p>${tr(i.teslimTs || i.ts)} ${saat(i.teslimTs || i.ts)}${h ? " · <b>" + esc(plakaYaz(h.plaka)) + "</b>" : ""}</p>
+  return `<div class="belge fis">${belgeBas()}<h2>BİLGİ FİŞİ</h2><p>${tr(i.teslimTs || i.ts)} ${saat(i.teslimTs || i.ts)}${h ? " · <b>" + esc(plakaYaz(h.plaka)) + "</b>" + (h.ad ? " · " + esc(h.ad) : "") : ""}</p>
     <table class="b-t">${(i.kalemler || []).map(k => `<tr><td>${esc(k.ad)}${k.adet > 1 ? " ×" + k.adet : ""}</td><td style="text-align:right">${tl(k.adet * k.fiyat)}</td></tr>`).join("")}<tr><th>TOPLAM</th><th style="text-align:right">${tl(i.toplam)}</th></tr></table>
     <p>${i.odendi ? (i.toplam ? "Ödeme: " + esc(i.odeme || "") : "Ücretsiz" + (i.kurId ? " (paket)" : "")) : "Ödenmedi"}</p><p class="b-k">Bu belge bilgi fişidir, mali değeri yoktur.</p></div>`;
 }
@@ -802,7 +802,7 @@ function kasaEkran() {
     <div class="cips">${[["gun", "Bugün"], ["hafta", "Bu hafta"], ["ay", "Bu ay"], ["ozel", "Tarih seç"]].map(([k, x]) => `<button class="cip ${KF.d === k ? "on" : ""}" data-kd="${k}">${x}</button>`).join("")}</div>
     ${KF.d === "ozel" ? `<div class="ikili-g"><label>Başlangıç<input class="girdi" type="date" id="kA" value="${a}"></label><label>Bitiş<input class="girdi" type="date" id="kB" value="${b}"></label></div>` : ""}
     <div class="kahraman"><small>${esc(baslik)} toplamı</small><b>${tl(top)}</b><div class="ikili" style="flex-wrap:wrap;gap:6px 16px">${Object.entries(tur).map(([k, v]) => `<span>${esc(k)} <b>${tl(v).replace(" ₺", "")}</b></span>`).join("") || "<span>Henüz tahsilat yok</span>"}</div></div>
-    ${bolumKart(is)}${teslimKart()}${yon() ? primKart(is) : ""}
+    ${bolumKart(is)}${veresiyeKart()}${teslimKart()}${yon() ? primKart(is) : ""}
     <div class="kart"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:var(--soluk)"><span>Son 7 gün</span><span>Bugün ${tl(gt[6])}</span></div>
       <div class="cubuk">${gt.map((v, k) => `<span class="${k === 6 ? "bug" : ""}" style="height:${Math.max(4, Math.round(v / mx * 100))}%" title="${tl(v)}"></span>`).join("")}</div>
       <div class="cubuk-alt">${gunler.map((g, k) => `<span>${k === 6 ? "Bugün" : GUN_KISA[new Date(g + "T12:00:00").getDay()]}</span>`).join("")}</div></div>
@@ -826,13 +826,13 @@ function kasaOzeti() {
   const enCok = Object.entries(say).sort((x, y) => y[1].t - x[1].t).slice(0, 3);
   const donem = KF.d === "gun" ? "Bugün (" + tr(t) + ")" : KF.d === "hafta" ? "Bu hafta (" + tr(a) + " – " + tr(b) + ")" : KF.d === "ay" ? AY_TAM[+t.slice(5, 7) - 1] + " " + t.slice(0, 4) : tr(a) + " – " + tr(b);
   const d = new Date(), c = "━━━━━━━━━━━━━━";
-  return [`📊 *${Veri.ayar("isletmeAd") || "Oto Defteri"}*`, `*${donem} kasa özeti*`, c,
+  return [`📊 *${Veri.ayar("isletmeAd") || "Esnaf Oto Detay Mobil"}*`, `*${donem} kasa özeti*`, c,
     `💰 Tahsilat: *${tl(top)}*`, ...Object.entries(tur).map(([k, v]) => `    • ${k}: ${tl(v)}`),
     `⏳ Alınacak: ${tl(alin)}`, `📦 Ürün / malzeme gideri: ${tl(gider)}`, `✅ Kâr: *${tl(kar)}*${top ? ` (%${Math.round(kar / top * 100)})` : ""}`,
     `🚗 Araç: ${new Set(is.filter(i => i.hastaId).map(i => i.hastaId)).size} · İş: ${is.length}`,
     ...(enCok.length ? ["", "🏆 En çok yapılan:", ...enCok.map(([k, v], i) => `    ${i + 1}. ${k} · ${v.n} adet · ${tl(v.t)}`)] : []),
     ...(is.some(i => i.perAd) ? ["", "👤 Personel:", ...perOzet(is).map(([k, v]) => `    • ${k}: ${v.n} işlem · ${tl(v.t)}`)] : []),
-    c, `_Oto Defteri · ${tr(yerel(d))} ${saat(yerel(d))}_`].join("\n");
+    c, `_Esnaf Oto Detay Mobil · ${tr(yerel(d))} ${saat(yerel(d))}_`].join("\n");
 }
 async function excelAktar() {
   const [a, b] = kasaAraligi(), bitis = b + "T99";
@@ -914,6 +914,15 @@ function kisiCiftleri() {          // iki telefonda aynı plaka ayrı açılmı�
     s.querySelector("#kB").onclick = async () => { const [x, y] = (a.ilk || "") <= (b.ilk || "") ? [a, b] : [b, a]; await Ekip.kisiBirlestir(x, y); kapat(); toast(`${plakaYaz(x.plaka)} · kayıtlar birleştirildi`); ciz(); kisiCiftleri(); };
     s.querySelector("#kF").onclick = async () => { await Ekip.farkli(a, b); kapat(); kisiCiftleri(); };
   });
+}
+// 1.2.0 veresiye: borcu olan araçlar (tarih aralığından bağımsız, en eski borç önce)
+function veresiyeKart() {
+  const L = A().hasta.map(h => { const is = hastaIslem(h.id).filter(i => !i.odendi && i.durum !== "randevu"); return {h, b: is.reduce((s, i) => s + i.toplam, 0), eski: is.map(i => i.ts).sort()[0]}; }).filter(x => x.b > 0).sort((a, b) => a.eski.localeCompare(b.eski));
+  if (!L.length) return "";
+  const top = L.reduce((s, x) => s + x.b, 0);
+  return `<div class="bas">📒 Veresiye · ${L.length} araç · toplam ${tl(top)}</div><div class="kart liste">${L.slice(0, 30).map(x => { const wa = waNo(x.h.tel), gun = gunFark(x.eski, bugun());
+    const m = `Merhaba${x.h.ad ? " " + x.h.ad : ""}, ${plakaYaz(x.h.plaka)} plakalı aracınız için ${tl(x.b)} ödemeniz bekliyor. Uygun olduğunuzda ödeyebilirsiniz, teşekkür ederiz.${isletmeImza()}`;
+    return `<div class="s" data-git="hasta/${x.h.id}">${aracResim(x.h.id)}${plakaHtml(x.h.plaka, 1)}<div class="m"><b>${tl(x.b)}${x.h.ad ? " · " + esc(x.h.ad) : ""}</b><small>${gun ? gun + " gündür bekliyor" : "bugün"} · dokunup tahsil edin</small></div>${wa ? `<a class="t" href="https://wa.me/${wa}?text=${encodeURIComponent(m)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:21px;text-decoration:none" aria-label="Ödeme hatırlatma">💬</a>` : ""}</div>`; }).join("")}</div>`;
 }
 function bolumKart(is) {
   const B = {yikama: "🫧 Yıkama", detay: "✨ Detay · kaplama", urun: "🛒 Ürün satışı"}, o = {};
@@ -1142,7 +1151,7 @@ function belgeResmi(tur, i) {
     y += 10; cizgi(1); yaz(Veri.ayar("garantiSart") || GARANTI_SART, 22, false, "#444");
   } else {
     yaz("BİLGİ FİŞİ", 36, true, "#111", "center"); y += 4;
-    satir(tr(i.teslimTs || i.ts) + " " + saat(i.teslimTs || i.ts), h.plaka ? plakaYaz(h.plaka) : "", true); y += 4; cizgi(1);
+    satir(tr(i.teslimTs || i.ts) + " " + saat(i.teslimTs || i.ts), h.plaka ? plakaYaz(h.plaka) : "", true); if (h.ad) satir("Müşteri", h.ad); y += 4; cizgi(1);
     for (const k of i.kalemler || []) satir(k.ad + (k.adet > 1 ? " ×" + k.adet : ""), tl(k.adet * k.fiyat));
     cizgi(2); satir("TOPLAM", tl(i.toplam), true); yaz(i.odendi ? (i.toplam ? "Ödeme: " + (i.odeme || "") : "Ücretsiz" + (i.kurId ? " (paket)" : "")) : "Ödenmedi", 28);
     y += 10; yaz("Bu belge bilgi fişidir, mali değeri yoktur.", 22, false, "#555");
@@ -1188,7 +1197,7 @@ function gunOzet() {
 function lisansEkrani(u) {
   const d = OTURUM.durum || {};
   u.innerHTML = `<main class="kilit" style="gap:14px;padding:24px"><div class="logo">🔒</div><div><b style="font-size:21px">${esc(d.yaz || "Lisans gerekli")}</b>
-    <div class="kucuk" style="margin-top:6px;max-width:340px">Oto Defteri lisans olmadan kullanılamaz. Kayıtlarınız silinmedi; lisans açılınca her şey kaldığı yerden devam eder.</div></div>
+    <div class="kucuk" style="margin-top:6px;max-width:340px">Esnaf Oto Detay Mobil lisans olmadan kullanılamaz. Kayıtlarınız silinmedi; lisans açılınca her şey kaldığı yerden devam eder.</div></div>
     <div class="kart" style="max-width:340px;width:100%;text-align:left"><small class="kucuk">Cihaz kodu · satıcıya gönderin</small><div style="font:800 22px ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px;margin-top:4px">${esc(Veri.ayar("cihaz") || "")}</div></div>
     <button class="btn ana" data-a="saticiya" style="max-width:340px">💬 Satıcıya WhatsApp'tan yaz</button>
     <button class="btn koyu" data-a="lisansYenile" style="max-width:340px">↻ Lisansı şimdi denetle</button>
@@ -1339,7 +1348,7 @@ const EYLEM = {
   kasaWa() { const no = waNo(Veri.ayar("isletmeTel")); window.open(`https://wa.me/${no}?text=${encodeURIComponent(kasaOzeti())}`, "_blank"); },
   async kopyala() { const k = Veri.ayar("cihaz"); try { await navigator.clipboard.writeText(k); toast("Cihaz kodu kopyalandı: " + k); } catch (e) { toast("Cihaz kodu: " + k); } },
   async lisansYenile() { toast("Denetleniyor…"); const ok = await Lisans.listeAl(); await lisansTazele(false); Lisans.bildir(SURUM); ciz(); toast(ok ? "Lisans güncel: " + OTURUM.durum.yaz : "İnternete bağlanılamadı · " + OTURUM.durum.yaz); },
-  saticiya() { const m = `Merhaba, Oto Defteri için yazıyorum.\nİşletme: ${Veri.ayar("isletmeAd") || ""}\nCihaz kodu: ${Veri.ayar("cihaz") || ""}`; window.open(`https://wa.me/${SATICI_TEL}?text=${encodeURIComponent(m)}`, "_blank"); },
+  saticiya() { const m = `Merhaba, Esnaf Oto Detay Mobil için yazıyorum.\nİşletme: ${Veri.ayar("isletmeAd") || ""}\nCihaz kodu: ${Veri.ayar("cihaz") || ""}`; window.open(`https://wa.me/${SATICI_TEL}?text=${encodeURIComponent(m)}`, "_blank"); },
   unuttum() { perde(`<h3>Şifremi unuttum</h3>${personelVar() ? `<p class="kucuk"><b>Personelseniz:</b> yöneticinize söyleyin, Ayarlar → Personel'den size yeni şifre verir.</p>` : ""}<p class="kucuk">${personelVar() ? "<b>Yöneticiyseniz:</b> " : ""}Güvenlik için şifre sıfırlanamaz. Yedeğiniz varsa programı silip yeniden kurun ve yedeği, yedek alındığı zamanki şifreyle geri yükleyin. Yardım için satıcınıza yazın.</p><button class="btn koyu" data-a="saticiya">Satıcıya yaz</button><button class="btn ince" data-kapat>Kapat</button>`, s => s.querySelector("[data-kapat]").onclick = kapat); },
   isletme() {
     perde(`<h3>İşletme bilgileri</h3><label>İşletme adı<input class="girdi" id="iA" value="${esc(Veri.ayar("isletmeAd") || "")}"></label><label>İşletme telefonu<input class="girdi" id="iT" type="tel" value="${esc(Veri.ayar("isletmeTel") || "")}"></label><label>Adres (isteğe bağlı)<input class="girdi" id="iD" value="${esc(Veri.ayar("isletmeAdres") || "")}" placeholder="Açık adres"></label><button class="btn koyu" id="iK">Kaydet</button>`, s => {

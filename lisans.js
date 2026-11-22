@@ -1,4 +1,4 @@
-/* Oto Defteri — lisans. Satıcının Lisans Yöneticisi'ndeki imzalı listeyle çalışır (masaüstü programlarla aynı düzen).
+/* Esnaf Oto Detay Mobil — lisans. Satıcının Lisans Yöneticisi'ndeki imzalı listeyle çalışır (masaüstü programlarla aynı düzen).
    Cihaz kodu ilk açılışta üretilir ve bu telefonda saklanır. Liste internet varken alınır, imzası doğrulanır; internetsiz lease_days gün çalışır.
    Hasta bilgisi hiçbir yere gönderilmez: bildirimde yalnız kod özeti, sürüm ve MÜHÜRLÜ (yalnız satıcının açabildiği) işletme adı / telefonu gider. */
 "use strict";
