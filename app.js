@@ -1,7 +1,7 @@
 /* Esnaf Oto Detay Mobil — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
    Kayıt adları Klinik Defteri altyapısından kaldı: hasta = araç (plaka), malzeme = katalog (hizmet / ürün), islem = iş (yıkama, detay, ürün satışı). */
 "use strict";
-const SURUM = "1.2.0";
+const SURUM = "1.2.1";
 const SATICI_TEL = "905309469947";
 const GOOGLE_CLIENT_ID = "1044147751394-qo809o3sndht657dcbr8cprj3m2s96dt.apps.googleusercontent.com";      // Google ile bağla (isteğe bağlı) · Drive'da yalnız bu programın klasörü
 const VARSAYILAN_GRUP = ["Yıkama", "İç temizlik", "Pasta cila", "Seramik", "PPF", "Cam filmi", "Ürün"];
@@ -143,7 +143,7 @@ async function driveYedekle(sessiz) {
   if (!googleBagli()) return false;
   if (sessiz && !Google.jetonVar()) return false;          // açılır pencere yalnız dokunuşla; sessizken jeton yoksa sonra
   try { await Google.jetonAl(sessiz); await Google.yedekYaz(await yedekOlustur(Veri.ayar("google").giz)); let fn = 0; try { fn = await fotoDriveEsitle(); } catch (e) { /* fotoğraf sonra */ } if (!sessiz) { toast("☁ Drive'a yedeklendi" + (fn ? ` · ${fn} fotoğraf` : "")); ciz(); } return true; }
-  catch (e) { if (!sessiz) toast("Drive'a yedeklenemedi: " + e.message); return false; }
+  catch (e) { if (!sessiz) { if (e.izin) googleIzinPerde(); else toast("Drive'a yedeklenemedi: " + e.message); } return false; }
 }
 function driveGeriYukleSor(metin, sonra) {
   perde(`<h3>☁ Drive'daki yedeği geri yükle</h3><p class="kucuk">Bu telefondaki kayıtların YERİNE geçer.</p><label>Yedeğin şifresi (yedek alındığı zamanki giriş şifresi)<input class="girdi" id="dS" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc"></label><p class="hata" id="dH"></p><button class="btn ana" id="dK">Geri yükle</button><button class="btn ince" data-kapat>Vazgeç</button>`, s => {
@@ -164,7 +164,15 @@ async function googleBaglan(kurulumda) {
     if (kurulumda) { toast(`Bağlandı (${r.email}) · Drive'da yedek yok, yeni kurulum yapın`); return ciz(); }
     toast(`Bağlandı: ${r.email}${r.kodDegisti ? " · cihaz kodu Drive'dan geri geldi" : ""}`);
     await driveYedekle(false);
-  } catch (e) { toast(e.message); }
+  } catch (e) { if (e.izin) googleIzinPerde(); else toast(e.message); }
+}
+// 1.2.1: Google ekranında "Drive" kutusu işaretlenmezse yedek yazılamaz (403) → ne yapılacağını söyle, tek dokunuşla yeniden iste
+function googleIzinPerde() {
+  perde(`<h3>Drive izni verilmedi</h3><p class="kucuk">Google ekranında <b>"Google Drive uygulama verilerini görme, oluşturma ve silme"</b> kutusu işaretlenmediği için yedek Drive'a yazılamadı.</p>
+    <p class="kucuk">"Tekrar izin ver"e dokunun, Google ekranında o kutuyu işaretleyip <b>Devam</b>'a basın. Program yalnız kendi gizli klasörünü görür; Drive'daki diğer dosyalarınıza erişemez.</p>
+    <button class="btn ana" id="gIz">Tekrar izin ver</button><button class="btn ince" data-kapat>Kapat</button>`, s => {
+    s.querySelector("[data-kapat]").onclick = kapat;
+    s.querySelector("#gIz").onclick = () => { kapat(); googleBaglan(false); }; });
 }
 
 // ---------------------------------------------------------------- ekip: birleştirme ekranları
@@ -1442,7 +1450,7 @@ const EYLEM = {
       s.querySelector("#gK").onclick = () => onay("Google bağlantısı kaldırılsın mı? (Drive'daki yedek silinmez)", async () => { await Google.kopar(); toast("Bağlantı kaldırıldı"); ciz(); }); });
   },
   driveYedek: () => driveYedekle(false),
-  async driveGeri() { try { const m = await Google.yedekOku(); if (!m) return toast("Drive'da yedek yok"); driveGeriYukleSor(m); } catch (e) { toast(e.message); } },
+  async driveGeri() { try { const m = await Google.yedekOku(); if (!m) return toast("Drive'da yedek yok"); driveGeriYukleSor(m); } catch (e) { if (e.izin) googleIzinPerde(); else toast(e.message); } },
   googleKurulum: () => googleBaglan(true),
   geriyukle() {
     const inp = document.createElement("input"); inp.type = "file";          // 1.1.0: tür sınırı yok (iPhone bilinmeyen uzantıyı seçtirmiyordu)
@@ -1506,6 +1514,7 @@ document.addEventListener("click", e => {
   try {
     await Veri.yukle(); stokYenile(); await aracFotoYukle(); await Lisans.hazirla(); OTURUM.durum = await Lisans.durum();
     setInterval(() => { if (OTURUM.acik && YOL()[0] === "ana" && !document.querySelector(".perde") && !document.hidden) ciz(); }, 60e3);          // bekleme süreleri
+    if (GOOGLE_CLIENT_ID && navigator.onLine !== false) Google.hazirla();          // 1.2.1: kütüphane önceden yüklensin; yoksa ilk "Bağla" dokunuşunda iPhone pencereyi engelliyordu
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
     ciz();
   } catch (e) { $("#uyg").innerHTML = `<div class="kilit"><div class="logo">!</div><b>Program açılamadı</b><p class="kucuk">${esc(e.message)}. Tarayıcının gizli (özel) penceresinde veri saklanamaz; normal pencerede açın.</p></div>`; }

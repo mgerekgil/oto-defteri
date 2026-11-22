@@ -1,5 +1,5 @@
 /* Esnaf Oto Detay Mobil — internetsiz çalışma: program dosyaları telefona kaydedilir. Sürüm değişince yenisi alınır. */
-const ON = "oto-1.2.0";
+const ON = "oto-1.2.1";
 const DOSYALAR = ["./", "index.html", "tasarim-temel.css", "app.css", "nacl-fast.min.js", "veri.js", "lisans.js", "google.js", "ekip.js", "app.js", "manifest.webmanifest", "simge-192.png", "simge-512.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(ON).then(c => c.addAll(DOSYALAR)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(x => x !== ON).map(x => caches.delete(x)))).then(() => self.clients.claim())); });

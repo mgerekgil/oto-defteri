@@ -4,7 +4,9 @@
 const Google = (() => {
   const KAPSAM = "https://www.googleapis.com/auth/drive.appdata openid email";
   const DRIVE = "https://www.googleapis.com/drive/v3/files", YUKLE = "https://www.googleapis.com/upload/drive/v3/files";
-  let jeton = null, jetonSon = 0, istemci = null;
+  const DRIVE_KAPSAM = "https://www.googleapis.com/auth/drive.appdata";
+  let jeton = null, jetonSon = 0, istemci = null, izinEksik = false;
+  const izinHatasi = () => { const e = new Error("Google Drive izni verilmedi"); e.izin = true; return e; };
 
   function kutuphane() {
     if (window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
@@ -21,15 +23,17 @@ const Google = (() => {
     await kutuphane();
     return new Promise((ok, hata) => {
       istemci = google.accounts.oauth2.initTokenClient({client_id: GOOGLE_CLIENT_ID, scope: KAPSAM,
-        callback: r => { if (r && r.access_token) { jeton = r.access_token; jetonSon = Date.now() + (+r.expires_in || 3600) * 1000; ok(jeton); } else hata(new Error("Google girişi yapılmadı")); },
+        callback: r => { if (r && r.access_token && !google.accounts.oauth2.hasGrantedAllScopes(r, DRIVE_KAPSAM)) { izinEksik = true; jeton = null; return hata(izinHatasi()); }
+          if (r && r.access_token) { izinEksik = false; jeton = r.access_token; jetonSon = Date.now() + (+r.expires_in || 3600) * 1000; ok(jeton); } else hata(new Error("Google girişi yapılmadı")); },
         error_callback: e => hata(new Error(e && e.type === "popup_closed" ? "Google penceresi kapatıldı" : "Google girişi yapılamadı"))});
       const g = Veri.ayar("google");
-      istemci.requestAccessToken(g && g.e ? {prompt: "", login_hint: g.e} : {});
+      istemci.requestAccessToken(izinEksik ? Object.assign({prompt: "consent"}, g && g.e ? {login_hint: g.e} : {}) : g && g.e ? {prompt: "", login_hint: g.e} : {});
     });
   }
   async function istek(url, ayar = {}) {
     const r = await fetch(url, Object.assign({}, ayar, {headers: Object.assign({Authorization: "Bearer " + jeton}, ayar.headers || {})}));
     if (r.status === 401) { jeton = null; throw new Error("Google oturumu düştü, yeniden bağlanın"); }
+    if (r.status === 403 && url.indexOf("googleapis.com/") > 0) { const m = await r.text().catch(() => ""); if (/insufficient|scope|PERMISSION_DENIED/i.test(m)) { jeton = null; izinEksik = true; throw izinHatasi(); } throw new Error("Google Drive hatası 403"); }
     if (!r.ok) throw new Error("Google Drive hatası " + r.status);
     return r;
   }
@@ -85,5 +89,5 @@ const Google = (() => {
     try { if (jeton && window.google && google.accounts) google.accounts.oauth2.revoke(jeton, () => {}); } catch (e) { /* önemsiz */ }
     jeton = null; await Veri.ayarYaz("google", null);
   }
-  return {baglan, yedekBilgi, yedekYaz, yedekOku, kopar, fotoYukle, fotoListe, fotoIndir, fotoSil, jetonVar: () => !!(jeton && Date.now() < jetonSon - 60e3), jetonAl};
+  return {hazirla: () => kutuphane().catch(() => {}), baglan, yedekBilgi, yedekYaz, yedekOku, kopar, fotoYukle, fotoListe, fotoIndir, fotoSil, jetonVar: () => !!(jeton && Date.now() < jetonSon - 60e3), jetonAl};
 })();
