@@ -1,7 +1,7 @@
 /* Esnaf Oto Detay Mobil — ekranlar. Oto yıkama, detay ve kaplama işletmeleri için; bilgisayar gerekmez, veriler yalnız bu telefonda / tablette (veri.js), lisans lisans.js'te.
    Kayıt adları Klinik Defteri altyapısından kaldı: hasta = araç (plaka), malzeme = katalog (hizmet / ürün), islem = iş (yıkama, detay, ürün satışı). */
 "use strict";
-const SURUM = "1.3.0";
+const SURUM = "1.3.1";
 const SATICI_TEL = "905309469947";
 const GOOGLE_CLIENT_ID = "1044147751394-qo809o3sndht657dcbr8cprj3m2s96dt.apps.googleusercontent.com";      // Google ile bağla (isteğe bağlı) · Drive'da yalnız bu programın klasörü
 const VARSAYILAN_GRUP = ["Yıkama", "İç temizlik", "Pasta cila", "Seramik", "PPF", "Cam filmi", "Ürün"];
@@ -302,7 +302,7 @@ const ust = (baslik, alt, sol, sag) => `<header class="ust">${sol ? `<button cla
 // 0 · kurulum
 function kurulumEkrani() {
   return `<main class="ic" style="padding-top:calc(20px + env(safe-area-inset-top,0px));gap:12px" data-baglan="kurulum">
-    <div class="logo">🚗</div><div style="text-align:center"><b style="font-size:22px">Esnaf Oto Detay Mobil</b><div class="kucuk">Hoş geldiniz · işletmenizi tanıtın</div></div>
+    <img class="logo" src="simge-192.png" alt=""><div style="text-align:center"><b style="font-size:22px">Esnaf Oto Detay Mobil</b><div class="kucuk">Hoş geldiniz · işletmenizi tanıtın</div></div>
     <label>İşletme adı<input class="girdi" id="kAd" autocomplete="organization" placeholder="Tabelada yazan ad"></label>
     <label>İşletme telefonu * <span style="font-weight:400">(fişte ve hatırlatmada görünür)</span><input class="girdi" id="kTel" type="tel" inputmode="tel" placeholder="Telefon numarası"></label>
     <div class="ikili-g"><label>Giriş şifresi (4–8 rakam)<input class="girdi" id="kPin" type="tel" inputmode="numeric" maxlength="8" style="-webkit-text-security:disc;letter-spacing:8px;text-align:center"></label>
@@ -321,7 +321,7 @@ function kilitEkrani(u) {
   let pin = "";
   const UZ = Math.max(...pinUzunluklari()), KISA = Math.min(...pinUzunluklari());          // en uzun şifreye ulaşınca kendiliğinden dener; kısa şifreler ✓ ile
   const ciz2 = (h = "") => {
-    u.innerHTML = `<main class="kilit"><div class="logo">🚗</div><div><b style="font-size:20px">${esc(Veri.ayar("isletmeAd") || "Esnaf Oto Detay Mobil")}</b><div class="kucuk">${personelVar() ? "Kendi şifrenizi yazın" : "Giriş şifrenizi yazın"}</div></div>
+    u.innerHTML = `<main class="kilit"><img class="logo" src="simge-192.png" alt=""><div><b style="font-size:20px">${esc(Veri.ayar("isletmeAd") || "Esnaf Oto Detay Mobil")}</b><div class="kucuk">${personelVar() ? "Kendi şifrenizi yazın" : "Giriş şifrenizi yazın"}</div></div>
       <div class="pin">${[...Array(UZ).keys()].map(i => `<span class="${i < pin.length ? "d" : ""}"></span>`).join("")}</div><p class="hata">${esc(h)}</p>
       <div class="pin-tus">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-n="${n}">${n}</button>`).join("")}<button class="bos" data-a="unuttum" style="font-size:12px;color:var(--soluk)">Unuttum</button><button data-n="0">0</button><button class="bos" data-sil>⌫</button></div>${KISA < UZ ? `<button class="btn koyu" data-gir style="max-width:280px;margin-top:6px">✓ Giriş</button>` : ""}</main>`;
     const nokta = () => u.querySelectorAll(".pin span").forEach((s, i) => s.classList.toggle("d", i < pin.length));
@@ -1657,6 +1657,24 @@ document.addEventListener("click", e => {
   if (t.dataset.mg) { MF.g = t.dataset.mg; return ciz(); }
   if (t.dataset.kd) { KF.d = t.dataset.kd; return ciz(); }
 });
+// 1.3.1: telefon programı "kapat-aç"ta sayfayı yenilemiyor (arka plandan devam ediyor) → öne gelince ve 30 dakikada bir yeni sürüme bak, varsa kendini yenile
+async function yeniSurumVar() {
+  try { const t = await (await fetch("app.js?s=" + Date.now(), {cache: "no-store"})).text(); const m = t.match(/SURUM = "([\d.]+)"/); return m && m[1] !== SURUM ? m[1] : ""; } catch (e) { return ""; }
+}
+function yarimIs() { const a = document.activeElement; return !!document.querySelector(".perde") || !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) || /^#(yeni|satis)/.test(location.hash); }
+function surumIzle() {
+  let son = 0, bekleyen = "";
+  const yenile = async v => { toast("Yeni sürüm yükleniyor · " + v); try { const r = await navigator.serviceWorker.getRegistration(); if (r) await r.update(); } catch (e) { /* önemsiz */ } try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) { /* önemsiz */ } setTimeout(() => location.reload(), 600); };
+  const bak = async () => {
+    if (bekleyen && !yarimIs()) return yenile(bekleyen);
+    if (document.hidden || Date.now() - son < 60e3) return; son = Date.now();
+    const v = await yeniSurumVar(); if (!v) return;
+    if (yarimIs()) { bekleyen = v; return; }          // yarım iş varsa bozmadan, iş bitince
+    yenile(v);
+  };
+  document.addEventListener("visibilitychange", bak); window.addEventListener("focus", bak); window.addEventListener("pageshow", bak); window.addEventListener("hashchange", () => setTimeout(bak, 300));
+  setInterval(bak, 30 * 60e3); setTimeout(bak, 3000);
+}
 // ---------------------------------------------------------------- açılış
 (async () => {
   try {
@@ -1664,6 +1682,7 @@ document.addEventListener("click", e => {
     setInterval(() => { if (OTURUM.acik && YOL()[0] === "ana" && !document.querySelector(".perde") && !document.hidden) ciz(); }, 60e3);          // bekleme süreleri
     if (GOOGLE_CLIENT_ID && window.Google && navigator.onLine !== false) Google.hazirla();          // 1.2.1: kütüphane önceden yüklensin; yoksa ilk "Bağla" dokunuşunda iPhone pencereyi engelliyordu
     if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+    surumIzle();
     ciz();
   } catch (e) { $("#uyg").innerHTML = `<div class="kilit"><div class="logo">!</div><b>Program açılamadı</b><p class="kucuk">${esc(e.message)}. Tarayıcının gizli (özel) penceresinde veri saklanamaz; normal pencerede açın.</p></div>`; }
 })();
